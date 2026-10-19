@@ -1,4 +1,4 @@
-# CoForms
+# Coforms
 
 > Thoughtful forms for better answers. Less form. More conversation.
 
