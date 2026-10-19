@@ -16,7 +16,7 @@ CoForms is a modern, intuitive, full-stack form builder and survey platform buil
 
 ## Tech Stack
 
-- **Frontend**: React 19, Vite, Tailwind CSS, Lucide Icons, QR Code SVG
+- **Frontend**: React, Vite, Tailwind CSS, Lucide Icons, QR Code SVG
 - **Backend**: Express, tRPC v11, Node.js
 - **Database & ORM**: MySQL with Drizzle ORM
 - **AI Integration**: NVIDIA NIM / OpenAI API for form generation
