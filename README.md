@@ -1,0 +1,69 @@
+# CoForms
+
+> Thoughtful forms for better answers. Less form. More conversation.
+
+CoForms is a modern, intuitive, full-stack form builder and survey platform built with React, Express, tRPC, Drizzle ORM, and Tailwind CSS. It combines an accessible editor, jump logic, custom themes, real-time response analytics, CSV exports, and AI-assisted form drafting.
+
+## Features
+
+- **Conversational Form Builder**: Create focused, one-question-at-a-time survey experiences that increase completion rates.
+- **Smart Jump Logic**: Dynamic conditional branching based on respondent answers.
+- **Visual Rhythm & Custom Themes**: Customize fonts, accent colors, background tones, and branded endings.
+- **Response Analytics**: Real-time summary metrics, reach rates, completion analytics, and one-click CSV export.
+- **AI-Assisted Form Drafting**: Generate complete question flows from natural language prompts using NVIDIA NIM / OpenAI models.
+- **Multi-Channel Distribution**: Share via direct link, embeddable iframes, or generated QR codes.
+- **Secure Authentication**: Built-in credential-based accounts and Google OAuth sign-in.
+
+## Tech Stack
+
+- **Frontend**: React 19, Vite, Tailwind CSS, Lucide Icons, QR Code SVG
+- **Backend**: Express, tRPC v11, Node.js
+- **Database & ORM**: MySQL with Drizzle ORM
+- **AI Integration**: NVIDIA NIM / OpenAI API for form generation
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- pnpm (or npm / yarn)
+- MySQL database
+
+### Setup
+
+1. **Install dependencies:**
+   ```bash
+   pnpm install
+   ```
+
+2. **Configure environment variables:**
+   Create a `.env` file with the following keys:
+   ```env
+   PORT=3000
+   DATABASE_URL="mysql://<user>:<password>@<host>:<port>/<database>?ssl=..."
+   GOOGLE_CLIENT_ID="<your-google-client-id>"
+   GOOGLE_CLIENT_SECRET="<your-google-client-secret>"
+   GOOGLE_REDIRECT_URI="http://localhost:3000/api/auth/google/callback"
+   NVIDIA_API_KEY="<your-nvidia-api-key>"
+   ```
+
+3. **Run database migrations:**
+   ```bash
+   pnpm db:migrate
+   ```
+
+4. **Start the development server:**
+   ```bash
+   pnpm dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) to view CoForms.
+
+5. **Build for production:**
+   ```bash
+   pnpm build
+   pnpm start
+   ```
+
+## License
+
+MIT © 2026 CoForms
