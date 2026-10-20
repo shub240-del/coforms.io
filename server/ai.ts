@@ -1,4 +1,4 @@
-import { invokeLLM, listLLMModels } from "./_core/llm";
+import { invokeLLM, listLLMModels, type Message } from "./_core/llm";
 import { QUESTION_TYPES, questionInputSchema } from "./forms";
 
 const draftSchema = {
@@ -29,7 +29,7 @@ const draftSchema = {
 async function selectAvailableModel() {
   const configured = process.env.MANUS_LLM_MODEL || process.env.NVIDIA_MODEL;
   if (configured) return configured;
-  if (process.env.NVIDIA_API_KEY) return "nvidia/nemotron-3-super-120b-a12b";
+  if (process.env.NVIDIA_API_KEY) return "nvidia/nemotron-3-ultra-550b-a55b";
   try {
     const catalog = await listLLMModels();
     const available = new Set(catalog.data.map(model => model.id));
@@ -40,7 +40,7 @@ async function selectAvailableModel() {
   } catch {
     // fallback if model catalog cannot be listed
   }
-  return "nvidia/nemotron-3-super-120b-a12b";
+  return "nvidia/nemotron-3-ultra-550b-a55b";
 }
 
 function parseJson(text: string) {
@@ -56,27 +56,36 @@ function parseJson(text: string) {
 
 export async function generateDraft(prompt: string) {
   const model = await selectAvailableModel();
-  const systemPrompt = `Create a useful, concise form draft. Use suitable question types, keep the wording clear, and return ONLY a valid JSON object matching this schema:\n${JSON.stringify(draftSchema, null, 2)}`;
+  const systemPrompt = `Create a useful, concise form draft. Use suitable question types, keep the wording clear, and return ONLY a valid JSON object matching this schema:\n${JSON.stringify(draftSchema, null, 2)}\n\nIMPORTANT: Output raw JSON only. No markdown, no code fences, no explanation.`;
+  const messages: Message[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: prompt },
+  ];
+
   let response;
+
+  // Attempt 1: strict json_schema (OpenAI-compatible providers)
   try {
     response = await invokeLLM({
       model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: prompt },
-      ],
+      messages,
       response_format: { type: "json_schema", json_schema: { name: "coforms_draft", strict: true, schema: draftSchema } },
     });
   } catch {
-    response = await invokeLLM({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    });
+    // Attempt 2: json_object mode
+    try {
+      response = await invokeLLM({
+        model,
+        messages,
+        response_format: { type: "json_object" },
+      });
+    } catch {
+      // Attempt 3: plain text — works with NVIDIA NIM and other providers that
+      // reject structured response_format. The system prompt instructs JSON output.
+      response = await invokeLLM({ model, messages });
+    }
   }
+
   const proxyError = (response as unknown as { error?: string | { message?: string } }).error;
   if (proxyError) throw new Error(typeof proxyError === "string" ? proxyError : proxyError.message || "AI drafting failed.");
   const content = response.choices?.[0]?.message?.content;

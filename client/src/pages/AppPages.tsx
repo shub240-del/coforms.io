@@ -4,11 +4,12 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft, ArrowRight, BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight,
   Clipboard, Copy, Download, ExternalLink, Eye, FilePlus2, FileText, GripVertical,
-  LayoutDashboard, Link2, LoaderCircle, LogOut, Mail, Menu, MoreHorizontal,
-  Palette, Plus, Settings2, Share2, Sparkles, Trash2, Upload, WandSparkles, X,
+  LayoutDashboard, Link2, LoaderCircle, LogOut, Mail, Menu, Mic, MicOff, MoreHorizontal,
+  Palette, Plus, Settings2, Share2, Sparkles, Trash2, Upload, Volume2, VolumeX, WandSparkles, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useVoiceForm } from "@/hooks/useVoiceForm";
 import "./AppPages.css";
 
 type FieldType =
@@ -460,6 +461,21 @@ export function PublicForm() {
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not upload this file."); }
     finally { setUploadBusy(false); }
   }
+  const isLastQuestion = index >= visible.length - 1;
+  const voice = useVoiceForm({
+    currentQuestion: current,
+    questionOptions: current ? questionOptions(current) : [],
+    onApplyAnswer: (questionId, value) => setAnswers(old => ({ ...old, [questionId]: value })),
+    onNext: () => {
+      if (isLastQuestion) {
+        toast.info("All questions answered. Click Submit when you're ready to send your response.");
+      } else {
+        next();
+      }
+    },
+    isFormComplete: complete,
+  });
+
   async function next() {
     if (!current) { submitAnswers(); return; }
     const value = answers[current.id];
@@ -478,7 +494,122 @@ export function PublicForm() {
   if (!normalized) return <div className="sf-form-not-found"><SpaceFormLogo /><h1>This form isn’t available.</h1><p>Check the link and try again.</p></div>;
   if (complete) return <div className="sf-public-form" style={{ background: normalized.theme?.background ?? "#faf9f5" }}><div className="sf-public-card sf-complete-card"><span className="sf-complete-check"><Check size={22} /></span><span className="sf-eyebrow">RESPONSE RECORDED</span><h1>{normalized.settings?.thankYouText || "Thanks for sharing."}</h1><p>Your answer has been sent.</p><span className="sf-powered-by">Made with <SpaceFormLogo small /></span></div></div>;
   if (!current) return <div className="sf-form-not-found"><SpaceFormLogo /><h1>This form has no questions yet.</h1><p>Come back when it’s ready.</p></div>;
-  return <div className="sf-public-form" style={{ background: normalized.theme?.background ?? "#faf9f5", "--form-accent": normalized.theme?.accent ?? "#e7bd45" } as React.CSSProperties}><header className="sf-public-brand">{normalized.settings?.logoUrl ? <img src={normalized.settings.logoUrl} alt={`${normalized.title} logo`} /> : <SpaceFormLogo />}</header><main className="sf-public-card"><div className="sf-public-progress"><span>QUESTION {String(index + 1).padStart(2, "0")} <i>/</i> {String(visible.length).padStart(2, "0")}</span><div><i style={{ width: `${Math.min(100, (index + 1) / Math.max(visible.length, 1) * 100)}%` }} /></div></div>{index === 0 && <><h1 className="sf-public-title">{normalized.title}</h1>{normalized.description && <p className="sf-public-intro">{normalized.description}</p>}</>}<section className="sf-public-question"><h2>{current.title}{current.required && <span> *</span>}</h2>{current.description && <p>{current.description}</p>}<div className="sf-public-field"><FieldInput question={current} value={answers[current.id]} onChange={v => setAnswers(old => ({ ...old, [current.id]: v }))} onFile={uploadFile} /></div></section><div className="sf-public-actions"><span>{index > 0 ? <button className="sf-public-back" onClick={() => setIndex(i => Math.max(0, i - 1))}><ChevronLeft size={15} /> Back</button> : <span className="sf-required-note">* Required</span>}</span><button className="sf-primary-btn" onClick={next} disabled={submit.isPending || uploadBusy || evaluateVisibility.isPending || startResponse.isPending || !progress}>{submit.isPending || evaluateVisibility.isPending || startResponse.isPending ? <LoaderCircle size={16} className="sf-spin" /> : null}{index >= visible.length - 1 ? "Submit" : "Continue"}<ArrowRight size={15} /></button></div><div className="sf-public-footer"><span>Press <kbd>Enter ↵</kbd> to continue</span><span>{index + 1} of {visible.length}</span></div></main><div className="sf-powered-by">Made with <SpaceFormLogo small /></div></div>;
+  return (
+    <div className="sf-public-form" style={{ background: normalized.theme?.background ?? "#faf9f5", "--form-accent": normalized.theme?.accent ?? "#e7bd45" } as React.CSSProperties}>
+      <header className="sf-public-brand">{normalized.settings?.logoUrl ? <img src={normalized.settings.logoUrl} alt={`${normalized.title} logo`} /> : <SpaceFormLogo />}</header>
+      <main className="sf-public-card">
+        <div className="sf-voice-header-bar">
+          <div className="sf-public-progress">
+            <span>QUESTION {String(index + 1).padStart(2, "0")} <i>/</i> {String(visible.length).padStart(2, "0")}</span>
+            <div><i style={{ width: `${Math.min(100, (index + 1) / Math.max(visible.length, 1) * 100)}%` }} /></div>
+          </div>
+          {voice.isSupported ? (
+            <div className="sf-voice-controls">
+              <button
+                type="button"
+                className={`sf-voice-toggle-btn ${voice.isEnabled ? "active" : ""}`}
+                onClick={voice.toggleVoiceMode}
+                title={voice.isEnabled ? "Turn off voice assistant" : "Turn on voice assistant"}
+                aria-pressed={voice.isEnabled}
+                aria-label={voice.isEnabled ? "Turn off voice assistant" : "Turn on voice assistant"}
+              >
+                {voice.isEnabled ? <Mic size={14} className="sf-voice-mic-active" /> : <MicOff size={14} />}
+                <span>
+                  {voice.isEnabled
+                    ? voice.status === "listening"
+                      ? "Listening…"
+                      : voice.status === "speaking"
+                      ? "Speaking…"
+                      : "Voice on"
+                    : "Voice mode"}
+                </span>
+              </button>
+              {voice.isEnabled && (
+                <button
+                  type="button"
+                  className="sf-voice-icon-btn"
+                  onClick={voice.toggleMute}
+                  title={voice.isMuted ? "Unmute assistant voice" : "Mute assistant voice"}
+                  aria-label={voice.isMuted ? "Unmute assistant voice" : "Mute assistant voice"}
+                >
+                  {voice.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                </button>
+              )}
+            </div>
+          ) : (
+            <span className="sf-voice-unsupported-note" title="Speech recognition is not available in this browser. Type and click as usual.">
+              Voice unavailable
+            </span>
+          )}
+        </div>
+
+        {voice.proposedAnswer && (
+          <div className="sf-voice-confirm-banner" role="region" aria-label="Confirm voice response">
+            <div className="sf-voice-confirm-info">
+              <span className="sf-voice-confirm-pulse" />
+              <span>Interpreted: <b>"{voice.proposedAnswer.displayValue}"</b></span>
+            </div>
+            {voice.proposedAnswer.message && (
+              <p className="sf-voice-confirm-note">{voice.proposedAnswer.message}</p>
+            )}
+            <div className="sf-voice-confirm-actions">
+              {!voice.proposedAnswer.isAmbiguous && (
+                <button
+                  type="button"
+                  className="sf-voice-btn-confirm"
+                  onClick={voice.confirmAnswer}
+                  aria-label="Confirm answer and continue"
+                >
+                  <Check size={14} /> Confirm & Continue
+                </button>
+              )}
+              <button
+                type="button"
+                className="sf-voice-btn-retry"
+                onClick={voice.retryAnswer}
+                aria-label="Try again or edit"
+              >
+                <X size={14} /> Try again / Edit
+              </button>
+            </div>
+          </div>
+        )}
+
+        {voice.errorMessage && (
+          <div className="sf-voice-error-banner" role="alert">
+            <span>{voice.errorMessage}</span>
+            {voice.isEnabled && (
+              <button type="button" onClick={voice.startListening} className="sf-voice-retry-link">
+                Retry microphone
+              </button>
+            )}
+          </div>
+        )}
+
+        {index === 0 && <><h1 className="sf-public-title">{normalized.title}</h1>{normalized.description && <p className="sf-public-intro">{normalized.description}</p>}</>}
+        <section className="sf-public-question">
+          <h2>{current.title}{current.required && <span> *</span>}</h2>
+          {current.description && <p>{current.description}</p>}
+          <div className="sf-public-field">
+            <FieldInput question={current} value={answers[current.id]} onChange={v => setAnswers(old => ({ ...old, [current.id]: v }))} onFile={uploadFile} />
+          </div>
+        </section>
+        <div className="sf-public-actions">
+          <span>{index > 0 ? <button className="sf-public-back" onClick={() => setIndex(i => Math.max(0, i - 1))}><ChevronLeft size={15} /> Back</button> : <span className="sf-required-note">* Required</span>}</span>
+          <button className="sf-primary-btn" onClick={next} disabled={submit.isPending || uploadBusy || evaluateVisibility.isPending || startResponse.isPending || !progress}>
+            {submit.isPending || evaluateVisibility.isPending || startResponse.isPending ? <LoaderCircle size={16} className="sf-spin" /> : null}
+            {index >= visible.length - 1 ? "Submit" : "Continue"}
+            <ArrowRight size={15} />
+          </button>
+        </div>
+        <div className="sf-public-footer">
+          <span>Press <kbd>Enter ↵</kbd> to continue</span>
+          <span>{index + 1} of {visible.length}</span>
+        </div>
+      </main>
+      <div className="sf-powered-by">Made with <SpaceFormLogo small /></div>
+    </div>
+  );
 }
 
 export function NewForm() {
