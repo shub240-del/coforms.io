@@ -1,11 +1,11 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useRoute } from "wouter";
+import { Link, useLocation, useRoute, useSearch } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import {
   ArrowLeft, ArrowRight, BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight,
   Clipboard, Copy, Download, ExternalLink, Eye, FilePlus2, FileText, GripVertical,
   LayoutDashboard, Link2, LoaderCircle, LogOut, Mail, Menu, Mic, MicOff, MoreHorizontal,
-  Palette, Plus, Settings2, Share2, Sparkles, Trash2, Upload, Volume2, VolumeX, WandSparkles, X,
+  Palette, Plus, Search, Settings2, Share2, Sparkles, Trash2, Upload, Volume2, VolumeX, WandSparkles, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -155,30 +155,77 @@ export function CoFormsLogo({ small = false }: { small?: boolean }) {
 
 export const SpaceFormLogo = CoFormsLogo;
 
+const DASHBOARD_TEMPLATES: Array<{ title: string; description: string; questions: Array<{ type: FieldType; title: string; required?: boolean; options?: string[] }> }> = [
+  {
+    title: "Customer feedback",
+    description: "Collect clear feedback about a recent customer experience.",
+    questions: [
+      { type: "rating", title: "How would you rate your experience?", required: true },
+      { type: "single_choice", title: "What went well?", options: ["The product", "Customer support", "Ease of use", "Other"] },
+      { type: "long_text", title: "What could we improve?" },
+    ],
+  },
+  {
+    title: "Event RSVP",
+    description: "Find out who is coming and what attendees need.",
+    questions: [
+      { type: "name", title: "What is your name?", required: true },
+      { type: "email", title: "What is your email address?", required: true },
+      { type: "yes_no", title: "Will you attend?", required: true },
+      { type: "short_text", title: "Do you have any dietary requirements?" },
+    ],
+  },
+  {
+    title: "Project intake",
+    description: "Gather the details needed to get a new project started.",
+    questions: [
+      { type: "short_text", title: "What is the project called?", required: true },
+      { type: "long_text", title: "What would you like to accomplish?", required: true },
+      { type: "date", title: "When would you like to get started?" },
+      { type: "email", title: "Where can we reach you?", required: true },
+    ],
+  },
+];
+
 function AppShell({ children, title }: { children: React.ReactNode; title: string }) {
   const [location, setLocation] = useLocation();
+  const queryString = useSearch();
   const utils = trpc.useUtils();
-  const logout = trpc.auth.logout.useMutation({ onSuccess: () => { utils.auth.me.setData(undefined, null); setLocation("/"); } });
+  const account = trpc.auth.me.useQuery(undefined, { retry: false });
+  const logout = trpc.auth.logout.useMutation({
+    onSuccess: () => { utils.auth.me.setData(undefined, null); setLocation("/"); },
+    onError: error => toast.error(error.message),
+  });
   const [menuOpen, setMenuOpen] = useState(false);
+  const activeTab = new URLSearchParams(queryString).get("tab");
   const nav = [
     { href: "/dashboard", label: "My forms", icon: LayoutDashboard },
     { href: "/dashboard?tab=templates", label: "Templates", icon: FileText },
     { href: "/dashboard?tab=analytics", label: "Analytics", icon: BarChart3 },
     { href: "/dashboard?tab=settings", label: "Settings", icon: Settings2 },
   ];
+  const initials = (account.data?.name || account.data?.email || "A").trim().slice(0, 1).toUpperCase();
   return <div className="sf-app-shell">
     <aside className={`sf-sidebar ${menuOpen ? "sf-sidebar-open" : ""}`}>
       <div className="sf-sidebar-top"><Link href="/dashboard"><SpaceFormLogo /></Link><button className="sf-icon-btn sf-mobile-close" onClick={() => setMenuOpen(false)} aria-label="Close menu"><X size={18} /></button></div>
-      <button className="sf-workspace-select"><span className="sf-workspace-icon"><img src="/logo.png" alt="Workspace" style={{ width: 20, height: 20, objectFit: "contain" }} /></span><span><b>My workspace</b><small>Starter plan</small></span><ChevronDown size={14} /></button>
+      <div className="sf-workspace-select"><span className="sf-workspace-icon"><img src="/logo.png" alt="" style={{ width: 20, height: 20, objectFit: "contain" }} /></span><span><b>My workspace</b><small>Starter plan</small></span></div>
       <div className="sf-nav-label">WORKSPACE</div>
-      <nav className="sf-side-nav">{nav.map(item => <Link key={item.href} href={item.href} className={location === item.href ? "active" : ""}><item.icon size={17} /><span>{item.label}</span></Link>)}</nav>
+      <nav className="sf-side-nav">{nav.map(item => {
+        const tab = item.href.split("tab=")[1];
+        const active = tab ? activeTab === tab : location === item.href && !activeTab;
+        return <Link key={item.href} href={item.href} className={active ? "active" : ""} onClick={() => setMenuOpen(false)}><item.icon size={17} /><span>{item.label}</span></Link>;
+      })}</nav>
       <div className="sf-sidebar-grow" />
       <div className="sf-upgrade-card"><span className="sf-upgrade-kicker"><Sparkles size={13} /> A little more room</span><b>Get more from your forms.</b><p>Unlock unlimited AI drafts and your own branding.</p><Link href="/pricing" className="sf-small-dark-btn">Explore Pro <ArrowRight size={14} /></Link></div>
-      <button className="sf-account-row" onClick={() => logout.mutate()}><span className="sf-avatar">S</span><span><b>My account</b><small>Sign out</small></span><LogOut size={15} /></button>
+      <button className="sf-account-row" onClick={() => logout.mutate()} disabled={logout.isPending} aria-label="Sign out">
+        <span className="sf-avatar">{initials}</span>
+        <span><b>{account.data?.name || "My account"}</b><small>{logout.isPending ? "Signing out…" : account.data?.email || "Sign out"}</small></span>
+        {logout.isPending ? <LoaderCircle size={15} className="sf-spin" /> : <LogOut size={15} />}
+      </button>
     </aside>
     {menuOpen && <button className="sf-nav-scrim" onClick={() => setMenuOpen(false)} aria-label="Close navigation" />}
     <main className="sf-app-main">
-      <header className="sf-app-topbar"><button className="sf-icon-btn sf-mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu size={19} /></button><div className="sf-app-crumb">Workspace <ChevronRight size={13} /> <b>{title}</b></div><div className="sf-app-top-actions"><Link href="/" className="sf-view-site"><ExternalLink size={14} /> View website</Link><span className="sf-avatar sf-avatar-sm">S</span></div></header>
+      <header className="sf-app-topbar"><button className="sf-icon-btn sf-mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu size={19} /></button><div className="sf-app-crumb">Workspace <ChevronRight size={13} /> <b>{title}</b></div><div className="sf-app-top-actions"><Link href="/" className="sf-view-site"><ExternalLink size={14} /> View website</Link><span className="sf-avatar sf-avatar-sm" aria-label={account.data?.name || "Account"}>{initials}</span></div></header>
       <div className="sf-app-content">{children}</div>
     </main>
   </div>;
@@ -257,17 +304,105 @@ export function ForgotPassword() {
 }
 
 export function Dashboard() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  const queryString = useSearch();
   const formsQuery = trpc.forms.list.useQuery();
-  const create = trpc.forms.create.useMutation({ onSuccess: (form: any) => setLocation(`/forms/${form.id}`), onError: error => toast.error(error.message) });
+  const create = trpc.forms.create.useMutation({
+    onSuccess: form => {
+      if (!form?.id) {
+        toast.error("Your form was created, but we couldn’t open it. Refresh your forms and try again.");
+        void formsQuery.refetch();
+        return;
+      }
+      setLocation(`/forms/${form.id}`);
+    },
+    onError: error => toast.error(error.message),
+  });
+  const createTemplateForm = trpc.forms.create.useMutation();
+  const updateTemplateForm = trpc.forms.update.useMutation();
+  const accountQuery = trpc.auth.me.useQuery(undefined, { retry: false });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "published">("all");
+  const [creatingTemplate, setCreatingTemplate] = useState("");
   const items = Array.isArray(formsQuery.data) ? formsQuery.data as any[] : ((formsQuery.data as any)?.forms ?? []);
   const totalResponses = items.reduce((sum: number, form: any) => sum + Number(form.responseCount ?? form.responsesCount ?? 0), 0 as number);
-  return <AppShell title="My forms"><div className="sf-page-header"><div><div className="sf-eyebrow">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }).toUpperCase()}</div><h1>Your forms</h1><p>Everything you’re building, all in one place.</p></div><button className="sf-primary-btn" onClick={() => create.mutate({ title: "Untitled form" })} disabled={create.isPending}><Plus size={17} /> Create a form</button></div>
-    <div className="sf-metric-row"><div className="sf-metric-card"><span>Forms</span><b>{items.length}</b><small>Across your workspace</small></div><div className="sf-metric-card"><span>Responses</span><b>{totalResponses}</b><small>Collected to date</small></div><div className="sf-metric-card"><span>Plan</span><b>Starter</b><small><Link href="/pricing">See upgrade options <ArrowRight size={12} /></Link></small></div></div>
-    <section className="sf-section-block"><div className="sf-section-heading"><div><h2>Recent forms</h2><p>Your forms, from first draft to live link.</p></div><div className="sf-list-controls"><button className="sf-filter-btn">All forms <ChevronDown size={14} /></button><button className="sf-icon-btn" aria-label="More options"><MoreHorizontal size={18} /></button></div></div>
-      {formsQuery.isLoading ? <div className="sf-loading"><LoaderCircle className="sf-spin" /> Loading your forms…</div> : items.length === 0 ? <div className="sf-empty"><span className="sf-empty-icon"><FilePlus2 size={24} /></span><h3>Your first form starts here.</h3><p>Start from a blank page or describe what you need and let AI sketch out a first draft.</p><button className="sf-primary-btn" onClick={() => create.mutate({ title: "Untitled form" })}><Plus size={16} /> Create your first form</button></div> : <div className="sf-form-list">{items.map((form: any) => <div className="sf-form-row" key={form.id}><Link href={`/forms/${form.id}`} className="sf-form-row-main"><span className="sf-doc-icon"><FileText size={18} /></span><span><b>{form.title || "Untitled form"}</b><small>Edited {displayDate(form.updatedAt)} · {form.responseCount ?? 0} responses</small></span></Link><span className={`sf-status ${prettyStatus(form).toLowerCase()}`}><i />{prettyStatus(form)}</span><Link href={`/forms/${form.id}/responses`} className="sf-row-action">View responses <ArrowRight size={14} /></Link><Link href={`/forms/${form.id}`} className="sf-icon-btn" aria-label={`Edit ${form.title}`}><ArrowRight size={16} /></Link></div>)}</div>}
-    </section>
-    <section className="sf-template-strip"><div><span className="sf-eyebrow">A GOOD PLACE TO BEGIN</span><h2>Skip the blank page.</h2><p>Start with a template, or let AI give your idea some shape.</p></div><Link href="/templates" className="sf-text-link">Browse templates <ArrowRight size={14} /></Link></section>
+  const tab = new URLSearchParams(queryString).get("tab");
+  const dashboardTab = tab === "templates" || tab === "analytics" || tab === "settings" ? tab : "forms";
+  const filteredItems = items.filter((form: any) => {
+    const matchesStatus = statusFilter === "all" || prettyStatus(form).toLowerCase() === statusFilter;
+    return matchesStatus && String(form.title ?? "").toLowerCase().includes(search.trim().toLowerCase());
+  });
+
+  async function useTemplate(template: (typeof DASHBOARD_TEMPLATES)[number]) {
+    setCreatingTemplate(template.title);
+    let createdId: string | undefined;
+    try {
+      const form = await createTemplateForm.mutateAsync({ title: template.title, description: template.description });
+      if (!form?.id) throw new Error("The form was created but could not be opened. Refresh your forms and try again.");
+      createdId = String(form.id);
+      await updateTemplateForm.mutateAsync({
+        id: createdId,
+        title: template.title,
+        description: template.description,
+        questions: template.questions.map(question => ({
+          id: makeId(),
+          type: question.type,
+          title: question.title,
+          required: question.required ?? false,
+          options: question.options,
+          settings: question.options ? { options: question.options } : {},
+        })),
+        theme: {},
+        settings: {},
+      });
+      setLocation(`/forms/${createdId}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create the template.");
+      if (createdId) setLocation(`/forms/${createdId}`);
+    } finally {
+      setCreatingTemplate("");
+    }
+  }
+
+  const title = dashboardTab === "templates" ? "Templates" : dashboardTab === "analytics" ? "Analytics" : dashboardTab === "settings" ? "Settings" : "My forms";
+  return <AppShell title={title}>
+    {dashboardTab === "forms" && <>
+      <div className="sf-page-header"><div><div className="sf-eyebrow">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }).toUpperCase()}</div><h1>Your forms</h1><p>Everything you’re building, all in one place.</p></div><button className="sf-primary-btn" onClick={() => create.mutate({ title: "Untitled form" })} disabled={create.isPending}><Plus size={17} /> {create.isPending ? "Creating…" : "Create a form"}</button></div>
+      <div className="sf-metric-row"><div className="sf-metric-card"><span>Forms</span><b>{formsQuery.isError || formsQuery.isLoading ? "—" : items.length}</b><small>Across your workspace</small></div><div className="sf-metric-card"><span>Responses</span><b>{formsQuery.isError || formsQuery.isLoading ? "—" : totalResponses}</b><small>Collected to date</small></div><div className="sf-metric-card"><span>Plan</span><b>Starter</b><small><Link href="/pricing">See upgrade options <ArrowRight size={12} /></Link></small></div></div>
+      <section className="sf-section-block"><div className="sf-section-heading"><div><h2>Recent forms</h2><p>Your forms, from first draft to live link.</p></div><div className="sf-list-controls">
+        <label className="sf-dashboard-search"><Search size={15} /><input type="search" aria-label="Search forms" placeholder="Search forms" value={search} onChange={event => setSearch(event.target.value)} /></label>
+        <label className="sf-dashboard-filter" aria-label="Filter forms by status"><select value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}><option value="all">All forms</option><option value="draft">Drafts</option><option value="published">Published</option></select><ChevronDown size={14} aria-hidden="true" /></label>
+      </div></div>
+        {formsQuery.isLoading ? <div className="sf-loading" role="status"><LoaderCircle className="sf-spin" /> Loading your forms…</div>
+          : formsQuery.isError ? <div className="sf-request-error" role="alert"><p>We couldn’t load your forms. Check your connection and try again.</p><button className="sf-outline-btn" onClick={() => void formsQuery.refetch()}>Try again</button></div>
+          : items.length === 0 ? <div className="sf-empty"><span className="sf-empty-icon"><FilePlus2 size={24} /></span><h3>Your first form starts here.</h3><p>Start with a blank page or choose a ready-made template.</p><button className="sf-primary-btn" onClick={() => create.mutate({ title: "Untitled form" })} disabled={create.isPending}><Plus size={16} /> Create your first form</button><Link href="/dashboard?tab=templates" className="sf-text-link">Browse templates <ArrowRight size={14} /></Link></div>
+          : filteredItems.length === 0 ? <div className="sf-empty sf-empty-compact"><h3>No forms match those filters.</h3><p>Try another search or show all forms.</p><button className="sf-outline-btn" onClick={() => { setSearch(""); setStatusFilter("all"); }}>Clear filters</button></div>
+          : <div className="sf-form-list">{filteredItems.map((form: any) => <div className="sf-form-row" key={form.id}><Link href={`/forms/${form.id}`} className="sf-form-row-main"><span className="sf-doc-icon"><FileText size={18} /></span><span><b>{form.title || "Untitled form"}</b><small>Edited {displayDate(form.updatedAt)} · {form.responseCount ?? 0} responses</small></span></Link><span className={`sf-status ${prettyStatus(form).toLowerCase()}`}><i />{prettyStatus(form)}</span><Link href={`/forms/${form.id}/responses`} className="sf-row-action">View responses <ArrowRight size={14} /></Link><Link href={`/forms/${form.id}`} className="sf-icon-btn" aria-label={`Edit ${form.title}`}><ArrowRight size={16} /></Link></div>)}</div>}
+      </section>
+      <section className="sf-template-strip"><div><span className="sf-eyebrow">A GOOD PLACE TO BEGIN</span><h2>Skip the blank page.</h2><p>Start with a template, or let AI give your idea some shape.</p></div><Link href="/dashboard?tab=templates" className="sf-text-link">Browse templates <ArrowRight size={14} /></Link></section>
+    </>}
+
+    {dashboardTab === "templates" && <section className="sf-section-block">
+      <div className="sf-page-header"><div><h1>Start with a template</h1><p>Choose a starting point. You can edit every question before publishing.</p></div></div>
+      <div className="sf-dashboard-template-grid">{DASHBOARD_TEMPLATES.map(template => <article className="sf-dashboard-template-card" key={template.title}><span className="sf-eyebrow">{template.questions.length} STARTER QUESTIONS</span><h2>{template.title}</h2><p>{template.description}</p><ul>{template.questions.map(question => <li key={question.title}>{question.title}</li>)}</ul><button className="sf-primary-btn" onClick={() => void useTemplate(template)} disabled={Boolean(creatingTemplate)}>{creatingTemplate === template.title ? <><LoaderCircle size={15} className="sf-spin" /> Creating…</> : <>Use this template <ArrowRight size={15} /></>}</button></article>)}</div>
+    </section>}
+
+    {dashboardTab === "analytics" && <section className="sf-section-block">
+      <div className="sf-page-header"><div><h1>Workspace analytics</h1><p>Response totals across your forms.</p></div></div>
+      {formsQuery.isLoading ? <div className="sf-loading" role="status"><LoaderCircle className="sf-spin" /> Loading analytics…</div>
+        : formsQuery.isError ? <div className="sf-request-error" role="alert"><p>We couldn’t load analytics. Check your connection and try again.</p><button className="sf-outline-btn" onClick={() => void formsQuery.refetch()}>Try again</button></div>
+        : <><div className="sf-metric-row"><div className="sf-metric-card"><span>Total forms</span><b>{items.length}</b><small>{items.filter((form: any) => prettyStatus(form) === "Published").length} published</small></div><div className="sf-metric-card"><span>Submitted responses</span><b>{totalResponses}</b><small>Across all forms</small></div><div className="sf-metric-card"><span>Draft forms</span><b>{items.filter((form: any) => prettyStatus(form) === "Draft").length}</b><small>Not currently collecting responses</small></div></div>
+          {items.length ? <div className="sf-form-list">{items.map((form: any) => <div className="sf-form-row" key={form.id}><Link href={`/forms/${form.id}/responses`} className="sf-form-row-main"><span className="sf-doc-icon"><BarChart3 size={18} /></span><span><b>{form.title || "Untitled form"}</b><small>{form.responseCount ?? 0} submitted responses · Edited {displayDate(form.updatedAt)}</small></span></Link><span className={`sf-status ${prettyStatus(form).toLowerCase()}`}><i />{prettyStatus(form)}</span><Link href={`/forms/${form.id}/responses`} className="sf-row-action">View responses <ArrowRight size={14} /></Link></div>)}</div>
+            : <div className="sf-empty sf-empty-compact"><h3>No analytics yet.</h3><p>Create a form to see response totals here.</p><Link href="/dashboard" className="sf-outline-btn">Go to My forms</Link></div>}
+        </>}
+    </section>}
+
+    {dashboardTab === "settings" && <section className="sf-section-block">
+      <div className="sf-page-header"><div><h1>Account settings</h1><p>Review the account currently signed in to this workspace.</p></div></div>
+      {accountQuery.isLoading ? <div className="sf-loading" role="status"><LoaderCircle className="sf-spin" /> Loading account…</div>
+        : accountQuery.isError ? <div className="sf-request-error" role="alert"><p>We couldn’t load your account details.</p><button className="sf-outline-btn" onClick={() => void accountQuery.refetch()}>Try again</button></div>
+        : <div className="sf-settings-card"><div><span className="sf-eyebrow">ACCOUNT NAME</span><b>{accountQuery.data?.name || "Not provided"}</b></div><div><span className="sf-eyebrow">EMAIL ADDRESS</span><b>{accountQuery.data?.email || "Not provided"}</b></div><div><span className="sf-eyebrow">SIGN-IN METHOD</span><b>{accountQuery.data?.loginMethod === "google" ? "Google" : "Email and password"}</b></div><p>Password changes and email preferences are not available yet. Sign out from the account menu when you’re finished.</p></div>}
+    </section>}
   </AppShell>;
 }
 
@@ -315,12 +450,15 @@ export function FormBuilder() {
     });
   }
   function deleteQuestion(id: string) { setForm(current => current ? { ...current, questions: current.questions.filter(q => q.id !== id) } : current); setSelected(form?.questions.find(q => q.id !== id)?.id ?? ""); }
-  if (query.isLoading || !form) return <div className="sf-editor-loading"><LoaderCircle className="sf-spin" /> Opening your form…</div>;
+  if (query.isLoading) return <div className="sf-editor-loading" role="status"><LoaderCircle className="sf-spin" /> Opening your form…</div>;
+  if (query.isError) return <div className="sf-editor-loading" role="alert"><div className="sf-request-error"><p>We couldn’t open this form. Check your connection and try again.</p><button className="sf-outline-btn" onClick={() => void query.refetch()}>Try again</button><Link href="/dashboard" className="sf-text-link">Back to forms</Link></div></div>;
+  if (!form) return <div className="sf-editor-loading" role="alert"><div className="sf-request-error"><p>This form couldn’t be found or you don’t have access to it.</p><Link href="/dashboard" className="sf-outline-btn">Back to forms</Link></div></div>;
   const isPublished = Boolean(form.published || form.isPublished || form.status === "published");
   const shareUrl = typeof window === "undefined" ? "" : `${window.location.origin}/f/${form.slug ?? form.id}`;
   const fields = FIELD_TYPES.reduce((groups, item) => { (groups[item.group] ||= []).push(item); return groups; }, {} as Record<string, typeof FIELD_TYPES>);
   return <div className="sf-editor-page">
-    <header className="sf-editor-header"><Link href="/dashboard" className="sf-back-link"><ArrowLeft size={16} /> Back to forms</Link><div className="sf-editor-doc"><span className={`sf-status ${isPublished ? "published" : "draft"}`}><i />{isPublished ? "Published" : "Draft"}</span><span className="sf-save-state">{saveState}</span></div><div className="sf-editor-actions"><button className="sf-outline-btn" onClick={() => setAiOpen(true)}><Sparkles size={15} /> AI draft</button><button className="sf-outline-btn" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share</button><button className="sf-primary-btn" onClick={() => publish.mutate({ id: String(form.id), published: !isPublished })} disabled={publish.isPending}>{isPublished ? "Unpublish" : "Publish"}</button></div></header>
+    <header className="sf-editor-header"><Link href="/dashboard" className="sf-back-link"><ArrowLeft size={16} /> Back to forms</Link><div className="sf-editor-doc"><span className={`sf-status ${isPublished ? "published" : "draft"}`}><i />{isPublished ? "Published" : "Draft"}</span><span className="sf-save-state">{saveState}</span></div><div className="sf-editor-actions"><button className="sf-outline-btn" onClick={() => setAiOpen(true)}><Sparkles size={15} /> AI draft</button><button className="sf-outline-btn" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share</button><button className="sf-primary-btn" onClick={() => publish.mutate({ id: String(form.id), published: !isPublished })} disabled={publish.isPending || (!isPublished && form.questions.length === 0)} title={!isPublished && form.questions.length === 0 ? "Add at least one question before publishing." : undefined}>{isPublished ? "Unpublish" : "Publish"}</button></div></header>
+    {!isPublished && form.questions.length === 0 && <div className="sf-publish-hint" role="status">Add at least one question before publishing this form.</div>}
     <div className="sf-editor-body">
       <aside className="sf-builder-left"><div className="sf-builder-tabs"><button onClick={() => setTab("build")} className={tab === "build" ? "active" : ""}><FileText size={15} />Build</button><button onClick={() => setTab("design")} className={tab === "design" ? "active" : ""}><Palette size={15} />Design</button><button onClick={() => setTab("logic")} className={tab === "logic" ? "active" : ""}><Settings2 size={15} />Logic</button></div>
         {tab === "build" && <div className="sf-question-list"><div className="sf-list-caption">QUESTIONS <span>{form.questions.length}</span></div>{form.questions.map((q, index) => <button key={q.id} className={`sf-question-nav ${q.id === selected ? "active" : ""}`} onClick={() => setSelected(q.id)}><GripVertical size={14} /><span className="sf-question-number">{String(index + 1).padStart(2, "0")}</span><span className="sf-question-nav-text"><b>{q.title}</b><small>{FIELD_TYPES.find(f => f.type === q.type)?.name ?? q.type}{q.required ? " · required" : ""}</small></span></button>)}<div className="sf-add-question"><label>Add a question type<select value="" onChange={e => e.target.value && addQuestion(e.target.value as FieldType)}><option value="">Choose field…</option>{Object.entries(fields).map(([group, entries]) => <optgroup key={group} label={group}>{entries.map(field => <option key={field.type} value={field.type}>{field.name}</option>)}</optgroup>)}</select></label><div className="sf-add-common">{FIELD_TYPES.slice(0, 5).map(field => <button key={field.type} title={`Add ${field.name}`} onClick={() => addQuestion(field.type)}><Plus size={12} />{field.name}</button>)}</div></div></div>}
@@ -366,10 +504,16 @@ export function ResponsesPage() {
     });
     saveCsv(`${(form?.title || "coforms").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-responses.csv`, headers, rows);
   }
-  return <AppShell title="Responses"><div className="sf-page-header"><div><Link href={`/forms/${id}`} className="sf-back-link"><ArrowLeft size={14} /> Back to builder</Link><h1>{form?.title || "Responses"}</h1><p>Every answer in one place.</p></div><button className="sf-primary-btn" onClick={exportResponses} disabled={!responses.length}><Download size={16} /> Export CSV</button></div>
+  if (formQuery.isLoading) return <AppShell title="Responses"><div className="sf-loading" role="status"><LoaderCircle className="sf-spin" /> Loading form…</div></AppShell>;
+  if (formQuery.isError || !form) return <AppShell title="Responses"><div className="sf-request-error" role="alert"><p>This form couldn’t be loaded. It may have been deleted or you may not have access.</p><button className="sf-outline-btn" onClick={() => void formQuery.refetch()}>Try again</button><Link href="/dashboard" className="sf-text-link">Back to forms</Link></div></AppShell>;
+  return <AppShell title="Responses"><div className="sf-page-header"><div><Link href={`/forms/${id}`} className="sf-back-link"><ArrowLeft size={14} /> Back to builder</Link><h1>{form?.title || "Responses"}</h1><p>Every answer in one place.</p></div><button className="sf-primary-btn" onClick={exportResponses} disabled={responseQuery.isLoading || responseQuery.isError || !responses.length}><Download size={16} /> Export CSV</button></div>
+    {responseQuery.isLoading ? <div className="sf-loading" role="status"><LoaderCircle className="sf-spin" /> Loading responses…</div>
+      : responseQuery.isError ? <div className="sf-request-error" role="alert"><p>We couldn’t load responses. Check your connection and try again.</p><button className="sf-outline-btn" onClick={() => void responseQuery.refetch()}>Try again</button></div>
+      : <>
     <div className="sf-response-stats"><div><span>Started</span><b>{metrics.started ?? responses.length}</b></div><div><span>Submitted</span><b>{responses.length}</b></div><div><span>Completion rate</span><b>{metrics.completionRate ?? 0}%</b></div><div><span>Questions</span><b>{questions.length}</b></div><div><span>Form status</span><b>{form?.published ? "Published" : "Draft"}</b></div></div>
     <div className="sf-table-wrap"><table className="sf-response-table"><thead><tr><th>Submitted</th>{questions.map(q => <th key={q.id}>{q.title}</th>)}</tr></thead><tbody>{responses.map((response: any, index: number) => { const source = response.answers ?? response.values ?? {}; const byId = Array.isArray(source) ? Object.fromEntries(source.map((a: any) => [a.questionId ?? a.fieldId, a.value])) : source; return <tr key={response.id ?? index}><td>{displayDate(response.submittedAt ?? response.createdAt)}</td>{questions.map(q => <td key={q.id}>{Array.isArray(byId[q.id]) ? byId[q.id].join(", ") : typeof byId[q.id] === "object" ? JSON.stringify(byId[q.id]) : String(byId[q.id] ?? "—")}</td>)}</tr>; })}</tbody></table>{!responseQuery.isLoading && !responses.length && <div className="sf-empty sf-empty-compact"><span className="sf-empty-icon"><BarChart3 size={24} /></span><h3>Your responses will show up here.</h3><p>Publish your form and share the link to start collecting answers.</p></div>}</div>
     {questions.length > 0 && <section className="sf-section-block"><div className="sf-section-heading"><div><h2>Question summary</h2><p>Response counts and reach by question.</p></div></div><div className="sf-summary-grid">{questions.map(q => { const count = responses.filter((r: any) => { const a = r.answers ?? r.values ?? {}; return Boolean(Array.isArray(a) ? a.find((x: any) => (x.questionId ?? x.fieldId) === q.id)?.value : a[q.id]); }).length; return <div key={q.id} className="sf-summary-card"><span>{q.title}</span><b>{count} <small>of {responses.length} answered · {viewedByQuestion.get(q.id) ?? 0} reached</small></b><div className="sf-progress"><i style={{ width: `${responses.length ? count / responses.length * 100 : 0}%` }} /></div></div>; })}</div></section>}
+      </>}
   </AppShell>;
 }
 
@@ -703,12 +847,13 @@ export function NewForm() {
   const started = useRef(false);
   const create = trpc.forms.create.useMutation({
     onSuccess: form => setLocation(`/forms/${(form as any).id}`),
-    onError: error => toast.error(error.message),
+    onError: error => { started.current = false; toast.error(error.message); },
   });
   useEffect(() => {
     if (started.current) return;
     started.current = true;
     create.mutate({ title: "Untitled form" });
   }, []);
-  return <div className="sf-editor-loading"><LoaderCircle className="sf-spin" /> Creating a draft…</div>;
+  if (create.isError) return <div className="sf-editor-loading" role="alert"><div className="sf-request-error"><p>We couldn’t create your draft. Check your connection and try again.</p><button className="sf-primary-btn" onClick={() => { started.current = true; create.reset(); create.mutate({ title: "Untitled form" }); }}>Try again</button><Link href="/dashboard" className="sf-text-link">Back to forms</Link></div></div>;
+  return <div className="sf-editor-loading" role="status"><LoaderCircle className="sf-spin" /> Creating a draft…</div>;
 }

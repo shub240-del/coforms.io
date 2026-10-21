@@ -84,6 +84,25 @@
 .sf-section-heading h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: -.035em; font-weight: 600; }
 .sf-section-heading p { margin: 0; font-size: 11px; color: #8b8981; }
 .sf-list-controls { display: flex; align-items: center; gap: 7px; }
+.sf-dashboard-search, .sf-dashboard-filter { height: 32px; display: inline-flex; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid #e6e4dc; border-radius: 5px; background: #fff; color: #85837a; }
+.sf-dashboard-search input { width: 150px; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--sf-ink); font: 10px 'DM Sans', sans-serif; }
+.sf-dashboard-search input::placeholder { color: #9a988f; }
+.sf-dashboard-filter { position: relative; }
+.sf-dashboard-filter select { appearance: none; padding-right: 17px; border: 0; outline: 0; background: transparent; color: #67655d; font: 10px 'DM Sans', sans-serif; cursor: pointer; }
+.sf-dashboard-filter svg { position: absolute; right: 8px; pointer-events: none; }
+.sf-request-error { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border: 1px solid #f1d8d1; border-radius: 7px; background: #fff8f6; color: #8d4539; font-size: 12px; }
+.sf-request-error p { flex: 1 1 220px; margin: 0; line-height: 1.5; }
+.sf-editor-loading .sf-request-error { max-width: 460px; flex-direction: column; align-items: flex-start; }
+.sf-dashboard-template-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 14px; }
+.sf-dashboard-template-card, .sf-settings-card { padding: 22px; border: 1px solid var(--sf-line); border-radius: 8px; background: #fff; }
+.sf-dashboard-template-card h2 { margin: 10px 0 6px; font-size: 19px; letter-spacing: -.035em; }
+.sf-dashboard-template-card p { min-height: 36px; margin: 0; color: #77756d; font-size: 12px; line-height: 1.5; }
+.sf-dashboard-template-card ul { min-height: 88px; margin: 18px 0; padding-left: 18px; color: #77756d; font-size: 11px; line-height: 1.8; }
+.sf-settings-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.sf-settings-card > div { display: flex; flex-direction: column; gap: 8px; }
+.sf-settings-card > div b { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.sf-settings-card > p { grid-column: 1 / -1; margin: 0; padding-top: 16px; border-top: 1px solid var(--sf-line); color: #85837a; font-size: 11px; line-height: 1.6; }
+.sf-publish-hint { padding: 9px 20px; border-bottom: 1px solid #f3dfbd; background: #fff8e8; color: #806226; font-size: 11px; text-align: center; }
 .sf-filter-btn { min-height: 30px; padding: 0 9px; display: flex; align-items: center; gap: 7px; border: 1px solid #e6e4dc; color: #67655d; background: #fff; border-radius: 5px; font-size: 10px; }
 .sf-form-list { border-top: 1px solid #e9e7df; }
 .sf-form-row { min-height: 67px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #eeece6; }
@@ -368,11 +387,21 @@
   .sf-app-content { padding: 25px 16px 40px; }
   .sf-page-header { align-items: flex-start; flex-direction: column; }
   .sf-page-header .sf-primary-btn { align-self: stretch; }
+  .sf-section-heading { align-items: flex-start; flex-direction: column; }
+  .sf-list-controls { width: 100%; }
+  .sf-dashboard-search { flex: 1; }
+  .sf-dashboard-search input { width: 100%; }
+  .sf-dashboard-filter { flex: 0 0 auto; }
   .sf-metric-row, .sf-response-stats { grid-template-columns: 1fr 1fr; }
   .sf-metric-card:last-child { grid-column: span 2; min-height: 98px; }
   .sf-form-row { gap: 8px; }
+  .sf-form-row .sf-status { font-size: 0; padding: 6px; }
+  .sf-form-row .sf-status i { width: 7px; height: 7px; }
   .sf-row-action { display: none; }
   .sf-template-strip { align-items: flex-start; flex-direction: column; }
+  .sf-dashboard-template-card, .sf-settings-card { padding: 17px; }
+  .sf-settings-card { grid-template-columns: 1fr; }
+  .sf-settings-card > p { grid-column: 1; }
   .sf-auth-frame { display: block; background: #f7f6f0; }
   .sf-auth-aside { display: none; }
   .sf-auth-content { min-height: 100vh; padding: 28px 22px; }
