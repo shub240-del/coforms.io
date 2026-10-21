@@ -9,7 +9,11 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) _db = drizzle(process.env.DATABASE_URL);
   return _db;
 }
-function requireDb() { if (!_db) throw new Error("Database is not available"); return _db; }
+function requireDb() {
+  if (!_db && process.env.DATABASE_URL) _db = drizzle(process.env.DATABASE_URL);
+  if (!_db) throw new Error("Database is not available");
+  return _db;
+}
 
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -117,7 +121,7 @@ export async function bindPublicUploadsToResponse(formId: string, responseId: st
 }
 
 function hashProgressToken(token: string) { return createHash("sha256").update(token).digest("hex"); }
-function progressTokenMatches(metadata: string | null, token: string) {
+export function progressTokenMatches(metadata: string | null, token: string) {
   if (!metadata || !token) return false;
   try {
     const saved = JSON.parse(metadata) as { progressTokenHash?: unknown };

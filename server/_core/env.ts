@@ -9,4 +9,5 @@ export const ENV = {
   get isProduction() { return process.env.NODE_ENV === "production"; },
   get forgeApiUrl() { return process.env.MANUS_API_URL || (process.env.NVIDIA_API_KEY ? "https://integrate.api.nvidia.com/v1" : ""); },
   get forgeApiKey() { return process.env.MANUS_API_KEY || process.env.NVIDIA_API_KEY || ""; },
+  get sakanaApiKey() { return process.env.SAKANA_API_KEY ?? ""; },
 };

@@ -106,7 +106,20 @@ function DemoSection() {
 }
 
 function HomeHero() {
-  return <section className="sf-hero sf-container"><div className="sf-hero-inner"><span className="sf-overline">FORMS WITH A POINT OF VIEW</span><h1>Ask better.<br /><em>Hear more.</em></h1><p>Create thoughtful forms that make it easy for people to give useful answers—and easy for you to do something with them.</p><div className="sf-hero-actions"><Button>Create your first form</Button><Button quiet href="/templates">Browse templates</Button></div><span className="sf-hero-note">Free to start · No credit card required</span></div><div className="sf-hero-figure" aria-hidden="true"><div className="sf-orbit sf-orbit-one" /><div className="sf-orbit sf-orbit-two" /><div className="sf-hero-sun"><span>the good<br />questions<br /><b>live here</b></span></div><span className="sf-figure-label sf-figure-label-one">01 / clarity</span><span className="sf-figure-label sf-figure-label-two">02 / context</span></div></section>;
+  return (
+    <section className="sf-hero sf-hero-centered sf-container">
+      <div className="sf-hero-inner">
+        <span className="sf-overline">FORMS WITH A POINT OF VIEW</span>
+        <h1>Ask better.<br /><em>Hear more.</em></h1>
+        <p>Create thoughtful forms that make it easy for people to give useful answers—and easy for you to do something with them.</p>
+        <div className="sf-hero-actions">
+          <Button>Create your first form</Button>
+          <Button quiet href="/templates">Browse templates</Button>
+        </div>
+        <span className="sf-hero-note">Free to start · No credit card required</span>
+      </div>
+    </section>
+  );
 }
 
 function HomePage() {

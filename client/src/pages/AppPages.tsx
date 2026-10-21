@@ -10,15 +10,16 @@ import {
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useVoiceForm } from "@/hooks/useVoiceForm";
+import { InteractiveVoiceAgent } from "@/components/interview/InteractiveVoiceAgent";
 import "./AppPages.css";
 
-type FieldType =
+export type FieldType =
   | "short_text" | "long_text" | "email" | "phone" | "number" | "url" | "date" | "time"
   | "date_time" | "dropdown" | "single_choice" | "multiple_choice" | "checkbox" | "yes_no"
   | "rating" | "opinion_scale" | "nps" | "ranking" | "file_upload" | "signature" | "image_choice"
   | "address" | "name" | "matrix" | "hidden" | "payment" | "scheduling";
 
-type Question = {
+export type Question = {
   id: string;
   type: FieldType;
   title: string;
@@ -28,8 +29,8 @@ type Question = {
   settings?: Record<string, any>;
   logic?: { whenQuestionId?: string; operator?: "equals" | "not_equals"; value?: string } | null;
 };
-type Theme = { accent?: string; background?: string; font?: string; radius?: string };
-type FormDoc = {
+export type Theme = { accent?: string; background?: string; font?: string; radius?: string };
+export type FormDoc = {
   id: string | number;
   title: string;
   description?: string | null;
@@ -39,7 +40,7 @@ type FormDoc = {
   status?: string;
   questions: Question[];
   theme?: Theme;
-  settings?: { thankYouText?: string; redirectUrl?: string; logoUrl?: string };
+  settings?: { thankYouText?: string; redirectUrl?: string; logoUrl?: string; conversationalMode?: boolean; [key: string]: any };
   responseCount?: number;
   updatedAt?: string | Date;
 };
@@ -330,7 +331,7 @@ export function FormBuilder() {
         {selectedQuestion && <div className="sf-selected-question"><div className="sf-selected-header"><span><b>{String(form.questions.findIndex(q => q.id === selected) + 1).padStart(2, "0")}</b> · {FIELD_TYPES.find(f => f.type === selectedQuestion.type)?.name}</span><div><button onClick={() => moveQuestion(form.questions.findIndex(q => q.id === selected), -1)} title="Move up"><ChevronLeft size={16} /></button><button onClick={() => moveQuestion(form.questions.findIndex(q => q.id === selected), 1)} title="Move down"><ChevronRight size={16} /></button><button onClick={() => deleteQuestion(selected)} title="Delete question"><Trash2 size={15} /></button></div></div><label className="sf-edit-label">QUESTION<input value={selectedQuestion.title} onChange={e => changeQuestion(selected, { title: e.target.value })} /></label><label className="sf-edit-label">DESCRIPTION <span className="sf-muted-optional">OPTIONAL</span><textarea value={selectedQuestion.description ?? ""} onChange={e => changeQuestion(selected, { description: e.target.value })} placeholder="Add a little context…" rows={2} /></label>{["dropdown", "single_choice", "multiple_choice", "image_choice", "ranking", "matrix"].includes(selectedQuestion.type) && <label className="sf-edit-label">OPTIONS <textarea value={questionOptions(selectedQuestion).join("\n")} onChange={e => changeQuestion(selected, { options: e.target.value.split("\n").filter(Boolean) })} rows={4} placeholder="One option per line" /></label>}<label className="sf-toggle-line"><span><b>Required</b><small>People need to answer this before continuing.</small></span><input type="checkbox" checked={Boolean(selectedQuestion.required)} onChange={e => changeQuestion(selected, { required: e.target.checked })} /></label><div className="sf-question-preview"><span className="sf-preview-overline">PREVIEW</span><FieldInput question={selectedQuestion} value={undefined} onChange={() => {}} disabled /></div></div>}
         {form.questions.length > 0 && <button className="sf-canvas-add" onClick={() => addQuestion("short_text")}><Plus size={15} /> Add a question</button>}
       </div></div><div className="sf-canvas-footer"><span><span className="sf-footer-dot" /> Autosave is on</span><span>Made with <b>coforms</b></span></div></section>
-      <aside className="sf-builder-inspector"><div className="sf-inspector-title"><span>FORM SETTINGS</span><MoreHorizontal size={17} /></div><label>Form name<input value={form.title} onChange={e => setForm(v => v ? { ...v, title: e.target.value } : v)} /></label><label>Intro text<textarea value={form.description ?? ""} onChange={e => setForm(v => v ? { ...v, description: e.target.value } : v)} rows={3} placeholder="Tell people what this is about" /></label><label>Thank-you message<textarea value={form.settings?.thankYouText ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), thankYouText: e.target.value } } : v)} rows={2} placeholder="Thanks for sharing." /></label><label>After-submit redirect<input value={form.settings?.redirectUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), redirectUrl: e.target.value } } : v)} placeholder="/thanks or https://example.com/thanks" /></label><label>Logo image URL<input value={form.settings?.logoUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), logoUrl: e.target.value } } : v)} placeholder="https://example.com/logo.png" /></label><p className="sf-helper-copy">Redirects accept a local path or secure HTTPS address.</p><div className="sf-inspector-summary"><span>Questions</span><b>{form.questions.length}</b></div><div className="sf-inspector-summary"><span>Responses</span><b>{form.responseCount ?? 0}</b></div><Link className="sf-inspector-link" href={`/forms/${form.id}/responses`}><BarChart3 size={15} /> View responses <ArrowRight size={14} /></Link><button className="sf-inspector-link" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share your form <ArrowRight size={14} /></button><div className="sf-inspector-tip"><Sparkles size={14} /><span><b>A good form is a short one.</b><small>Keep each question focused and easy to answer.</small></span></div></aside>
+      <aside className="sf-builder-inspector"><div className="sf-inspector-title"><span>FORM SETTINGS</span><MoreHorizontal size={17} /></div><label>Form name<input value={form.title} onChange={e => setForm(v => v ? { ...v, title: e.target.value } : v)} /></label><label>Intro text<textarea value={form.description ?? ""} onChange={e => setForm(v => v ? { ...v, description: e.target.value } : v)} rows={3} placeholder="Tell people what this is about" /></label><label className="sf-toggle-line"><span><b>Conversational interview mode</b><small>Offer respondents a natural AI-guided conversational experience.</small></span><input type="checkbox" checked={Boolean(form.settings?.conversationalMode)} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), conversationalMode: e.target.checked } } : v)} /></label><label>Thank-you message<textarea value={form.settings?.thankYouText ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), thankYouText: e.target.value } } : v)} rows={2} placeholder="Thanks for sharing." /></label><label>After-submit redirect<input value={form.settings?.redirectUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), redirectUrl: e.target.value } } : v)} placeholder="/thanks or https://example.com/thanks" /></label><label>Logo image URL<input value={form.settings?.logoUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), logoUrl: e.target.value } } : v)} placeholder="https://example.com/logo.png" /></label><p className="sf-helper-copy">Redirects accept a local path or secure HTTPS address.</p><div className="sf-inspector-summary"><span>Questions</span><b>{form.questions.length}</b></div><div className="sf-inspector-summary"><span>Responses</span><b>{form.responseCount ?? 0}</b></div><Link className="sf-inspector-link" href={`/forms/${form.id}/responses`}><BarChart3 size={15} /> View responses <ArrowRight size={14} /></Link><button className="sf-inspector-link" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share your form <ArrowRight size={14} /></button><div className="sf-inspector-tip"><Sparkles size={14} /><span><b>A good form is a short one.</b><small>Keep each question focused and easy to answer.</small></span></div></aside>
     </div>
     {aiOpen && <div className="sf-modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setAiOpen(false)}><section className="sf-modal"><button className="sf-modal-close" onClick={() => setAiOpen(false)}><X size={18} /></button><span className="sf-eyebrow"><WandSparkles size={13} /> AI FORM DRAFT</span><h2>What do you want to build?</h2><p>Describe your form. AI will draft the questions, order and field types.</p><textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g. Feedback from people who came to our Saturday baking class…" rows={4} /><button className="sf-primary-btn" disabled={!prompt.trim() || draft.isPending} onClick={() => draft.mutate({ prompt })}>{draft.isPending ? <><LoaderCircle className="sf-spin" size={16} /> Drafting…</> : <><Sparkles size={16} /> Draft my questions</>}</button><small>Your draft stays editable. No payment provider is connected.</small></section></div>}
     {shareOpen && <ShareDialog form={form} url={shareUrl} onClose={() => setShareOpen(false)} />}
@@ -371,7 +372,7 @@ export function ResponsesPage() {
   </AppShell>;
 }
 
-function FieldInput({ question, value, onChange, disabled = false, onFile }: { question: Question; value: any; onChange: (value: any) => void; disabled?: boolean; onFile?: (file: File) => Promise<void> }) {
+export function FieldInput({ question, value, onChange, disabled = false, onFile }: { question: Question; value: any; onChange: (value: any) => void; disabled?: boolean; onFile?: (file: File) => Promise<void> }) {
   const options = questionOptions(question);
   const basic = (type: string, placeholder = "Your answer") => <input type={type} placeholder={placeholder} value={value ?? ""} disabled={disabled} onChange={e => onChange(e.target.value)} />;
   switch (question.type) {
@@ -424,13 +425,24 @@ export function PublicForm() {
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [index, setIndex] = useState(0);
   const [complete, setComplete] = useState(false);
+  const normalized = normalizeForm(query.data);
+  const isConversationalConfigured = Boolean(normalized?.settings?.conversationalMode);
+  const [displayMode, setDisplayMode] = useState<"interview" | "classic">("classic");
+  const modeInitialized = useRef(false);
+  useEffect(() => {
+    if (normalized && !modeInitialized.current) {
+      modeInitialized.current = true;
+      if (normalized.settings?.conversationalMode) {
+        setDisplayMode("interview");
+      }
+    }
+  }, [normalized?.settings?.conversationalMode]);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [visibleIds, setVisibleIds] = useState<string[] | null>(null);
   const [progress, setProgress] = useState<{ responseId: string; progressToken: string } | null>(null);
   const startedFor = useRef("");
   const startResponse = trpc.forms.start.useMutation({ onSuccess: setProgress, onError: error => { startedFor.current = ""; toast.error(error.message); } });
   const recordProgress = trpc.forms.progress.useMutation({ onError: error => toast.error(error.message) });
-  const normalized = normalizeForm(query.data);
   const questions = useMemo(() => normalized?.questions.filter(q => q.type !== "hidden") ?? [], [normalized]);
   const visible = visibleIds ? questions.filter(q => visibleIds.includes(q.id)) : questions;
   const current = visible[Math.min(index, Math.max(visible.length - 1, 0))];
@@ -490,10 +502,69 @@ export function PublicForm() {
       else setIndex(nextIndex);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not continue this form."); }
   }
+
+  // Voice-agent variant: receives the just-confirmed answer so it never reads
+  // from a stale closure (the spoken answer may not have flushed to `answers` yet).
+  async function nextAfterVoice(confirmedQuestionId?: string, confirmedValue?: unknown) {
+    if (!current) { submitAnswers(); return; }
+    if (confirmedQuestionId !== undefined) {
+      setAnswers(old => ({ ...old, [confirmedQuestionId]: confirmedValue }));
+    }
+    // Build the answers map with the freshly confirmed value merged in
+    const mergedAnswers = confirmedQuestionId !== undefined
+      ? { ...answers, [confirmedQuestionId]: confirmedValue }
+      : answers;
+    try {
+      const result = await evaluateVisibility.mutateAsync({ slug, answers: mergedAnswers });
+      const nextVisible = questions.filter(question => result.questionIds.includes(question.id));
+      const currentPosition = questions.findIndex(question => question.id === current.id);
+      const nextIndex = nextVisible.findIndex(question => questions.findIndex(item => item.id === question.id) > currentPosition);
+      setVisibleIds(nextVisible.map(question => question.id));
+      if (nextIndex < 0) submitAnswers();
+      else setIndex(nextIndex);
+    } catch {
+      // Fallback: simply advance index linearly if visibility evaluation fails
+      const currentPosition = questions.findIndex(question => question.id === current.id);
+      if (currentPosition >= questions.length - 1) {
+        submitAnswers();
+      } else {
+        setIndex(i => i + 1);
+      }
+    }
+  }
+
   if (query.isLoading) return <div className="sf-public-loading"><LoaderCircle className="sf-spin" /> Opening your form…</div>;
   if (!normalized) return <div className="sf-form-not-found"><SpaceFormLogo /><h1>This form isn’t available.</h1><p>Check the link and try again.</p></div>;
-  if (complete) return <div className="sf-public-form" style={{ background: normalized.theme?.background ?? "#faf9f5" }}><div className="sf-public-card sf-complete-card"><span className="sf-complete-check"><Check size={22} /></span><span className="sf-eyebrow">RESPONSE RECORDED</span><h1>{normalized.settings?.thankYouText || "Thanks for sharing."}</h1><p>Your answer has been sent.</p><span className="sf-powered-by">Made with <SpaceFormLogo small /></span></div></div>;
-  if (!current) return <div className="sf-form-not-found"><SpaceFormLogo /><h1>This form has no questions yet.</h1><p>Come back when it’s ready.</p></div>;
+  if (complete && displayMode !== "interview") return <div className="sf-public-form" style={{ background: normalized.theme?.background ?? "#faf9f5" }}><div className="sf-public-card sf-complete-card"><span className="sf-complete-check"><Check size={22} /></span><span className="sf-eyebrow">RESPONSE RECORDED</span><h1>{normalized.settings?.thankYouText || "Thanks for sharing."}</h1><p>Your answer has been sent.</p><span className="sf-powered-by">Made with <SpaceFormLogo small /></span></div></div>;
+  if (!current && !complete) return <div className="sf-form-not-found"><SpaceFormLogo /><h1>This form has no questions yet.</h1><p>Come back when it’s ready.</p></div>;
+
+  if (displayMode === "interview" && isConversationalConfigured) {
+    return (
+      <InteractiveVoiceAgent
+        slug={slug}
+        responseId={progress?.responseId}
+        progressToken={progress?.progressToken}
+        form={normalized}
+        questions={questions}
+        visible={visible}
+        answers={answers}
+        onAnswerChange={(questionId, value) => setAnswers(old => ({ ...old, [questionId]: value }))}
+        currentIndex={index}
+        onNext={nextAfterVoice}
+        onBack={() => setIndex(i => Math.max(0, i - 1))}
+        onJumpToQuestion={(targetIdx) => setIndex(targetIdx)}
+        onSubmit={submitAnswers}
+        isSubmitting={submit.isPending}
+        isEvaluating={evaluateVisibility.isPending}
+        onSwitchToClassic={() => setDisplayMode("classic")}
+        uploadFile={uploadFile}
+        uploadBusy={uploadBusy}
+        FieldInputComponent={FieldInput}
+        isComplete={complete}
+      />
+    );
+  }
+
   return (
     <div className="sf-public-form" style={{ background: normalized.theme?.background ?? "#faf9f5", "--form-accent": normalized.theme?.accent ?? "#e7bd45" } as React.CSSProperties}>
       <header className="sf-public-brand">{normalized.settings?.logoUrl ? <img src={normalized.settings.logoUrl} alt={`${normalized.title} logo`} /> : <SpaceFormLogo />}</header>
@@ -503,44 +574,58 @@ export function PublicForm() {
             <span>QUESTION {String(index + 1).padStart(2, "0")} <i>/</i> {String(visible.length).padStart(2, "0")}</span>
             <div><i style={{ width: `${Math.min(100, (index + 1) / Math.max(visible.length, 1) * 100)}%` }} /></div>
           </div>
-          {voice.isSupported ? (
-            <div className="sf-voice-controls">
+          <div className="sf-voice-controls">
+            {isConversationalConfigured && (
               <button
                 type="button"
-                className={`sf-voice-toggle-btn ${voice.isEnabled ? "active" : ""}`}
-                onClick={voice.toggleVoiceMode}
-                title={voice.isEnabled ? "Turn off voice assistant" : "Turn on voice assistant"}
-                aria-pressed={voice.isEnabled}
-                aria-label={voice.isEnabled ? "Turn off voice assistant" : "Turn on voice assistant"}
+                className="sf-voice-toggle-btn active"
+                onClick={() => setDisplayMode("interview")}
+                title="Switch to AI Story Interview"
+                style={{ background: "linear-gradient(180deg, #fef08a 0%, #efc54a 100%)", color: "#141312", fontWeight: 600 }}
               >
-                {voice.isEnabled ? <Mic size={14} className="sf-voice-mic-active" /> : <MicOff size={14} />}
-                <span>
-                  {voice.isEnabled
-                    ? voice.status === "listening"
-                      ? "Listening…"
-                      : voice.status === "speaking"
-                      ? "Speaking…"
-                      : "Voice on"
-                    : "Voice mode"}
-                </span>
+                <Sparkles size={13} />
+                <span>AI Story Interview</span>
               </button>
-              {voice.isEnabled && (
+            )}
+            {voice.isSupported ? (
+              <>
                 <button
                   type="button"
-                  className="sf-voice-icon-btn"
-                  onClick={voice.toggleMute}
-                  title={voice.isMuted ? "Unmute assistant voice" : "Mute assistant voice"}
-                  aria-label={voice.isMuted ? "Unmute assistant voice" : "Mute assistant voice"}
+                  className={`sf-voice-toggle-btn ${voice.isEnabled ? "active" : ""}`}
+                  onClick={voice.toggleVoiceMode}
+                  title={voice.isEnabled ? "Turn off voice assistant" : "Turn on voice assistant"}
+                  aria-pressed={voice.isEnabled}
+                  aria-label={voice.isEnabled ? "Turn off voice assistant" : "Turn on voice assistant"}
                 >
-                  {voice.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  {voice.isEnabled ? <Mic size={14} className="sf-voice-mic-active" /> : <MicOff size={14} />}
+                  <span>
+                    {voice.isEnabled
+                      ? voice.status === "listening"
+                        ? "Listening…"
+                        : voice.status === "speaking"
+                        ? "Speaking…"
+                        : "Voice on"
+                      : "Voice mode"}
+                  </span>
                 </button>
-              )}
-            </div>
-          ) : (
-            <span className="sf-voice-unsupported-note" title="Speech recognition is not available in this browser. Type and click as usual.">
-              Voice unavailable
-            </span>
-          )}
+                {voice.isEnabled && (
+                  <button
+                    type="button"
+                    className="sf-voice-icon-btn"
+                    onClick={voice.toggleMute}
+                    title={voice.isMuted ? "Unmute assistant voice" : "Mute assistant voice"}
+                    aria-label={voice.isMuted ? "Unmute assistant voice" : "Mute assistant voice"}
+                  >
+                    {voice.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  </button>
+                )}
+              </>
+            ) : (
+              <span className="sf-voice-unsupported-note" title="Speech recognition is not available in this browser. Type and click as usual.">
+                Voice unavailable
+              </span>
+            )}
+          </div>
         </div>
 
         {voice.proposedAnswer && (
