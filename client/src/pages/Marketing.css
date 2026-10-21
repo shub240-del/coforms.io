@@ -78,7 +78,7 @@
 .sf-metrics strong { font-size: 32px; font-weight: 500; letter-spacing: -.08em; }
 .sf-metrics strong span { color: var(--sf-primary); font-size: 20px; }
 .sf-metrics > div > span { color: var(--sf-muted); font-family: "DM Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .07em; }
-.sf-demo { display: grid; grid-template-columns: .75fr 1.25fr; gap: 90px; align-items: center; padding-top: 150px; padding-bottom: 155px; }
+.sf-demo { width: min(1340px, calc(100% - 80px)); display: grid; grid-template-columns: .75fr 1.25fr; gap: 55px; align-items: center; padding-top: 150px; padding-bottom: 155px; }
 .sf-demo-copy { max-width: 390px; }
 .sf-demo h2, .sf-marketing-heading h2, .sf-story-copy h2 { margin: 17px 0 19px; font-size: clamp(35px, 4.1vw, 57px); font-weight: 500; letter-spacing: -.075em; line-height: .98; }
 .sf-demo p, .sf-marketing-heading p, .sf-story-copy p { color: var(--sf-muted); font-size: 16px; line-height: 1.6; }
@@ -107,13 +107,16 @@
 .sf-form-foot .sf-preview-back:disabled { opacity: .5; cursor: not-allowed; }
 .sf-form-foot .sf-preview-continue { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border: 0; background: var(--sf-ink); color: var(--sf-paper); font-size: 11px; cursor: pointer; }
 .sf-form-foot .sf-preview-continue:hover { background: var(--sf-primary); }
-.sf-annotation { position: absolute; color: var(--sf-muted); font-family: "DM Mono", monospace; font-size: 10px; }
-.sf-annotation span { display: block; margin-bottom: 5px; color: var(--sf-primary); }
+.sf-annotation { position: absolute; z-index: 1; width: 132px; padding: 12px; border: 1px solid #d8d4c9; border-radius: 7px; background: linear-gradient(155deg, #fff 0%, #f8f6f0 100%); box-shadow: 0 4px 0 #d6d1c4, 0 9px 16px rgba(24,24,22,.12), inset 0 1px 0 #fff; color: var(--sf-muted); font-family: "DM Mono", monospace; font-size: 10px; transition: transform .18s ease, box-shadow .18s ease; }
+.sf-annotation:hover { box-shadow: 0 6px 0 #d6d1c4, 0 13px 20px rgba(24,24,22,.15), inset 0 1px 0 #fff; }
+.sf-annotation span { display: block; margin-bottom: 6px; color: var(--sf-primary); }
 .sf-annotation b, .sf-annotation small { display: block; font-family: "DM Sans", sans-serif; }
 .sf-annotation b { color: var(--sf-ink); font-size: 12px; font-weight: 600; }
 .sf-annotation small { margin-top: 3px; }
-.sf-annotation-one { top: 50%; left: 2%; transform: translateY(-50%); }
-.sf-annotation-two { top: 50%; right: 0; bottom: auto; text-align: right; transform: translateY(-50%); }
+.sf-annotation-one { top: 50%; left: 0; transform: translateY(-50%) perspective(500px) rotateY(5deg); }
+.sf-annotation-one:hover { transform: translateY(calc(-50% - 2px)) perspective(500px) rotateY(5deg); }
+.sf-annotation-two { top: 50%; right: 0; bottom: auto; text-align: right; transform: translateY(-50%) perspective(500px) rotateY(-5deg); }
+.sf-annotation-two:hover { transform: translateY(calc(-50% - 2px)) perspective(500px) rotateY(-5deg); }
 .sf-feature-intro { padding-bottom: 155px; }
 .sf-marketing-heading { max-width: 620px; }
 .sf-marketing-heading.sf-align-center { margin-right: auto; margin-left: auto; text-align: center; }
@@ -234,7 +237,7 @@
   .sf-light-section { padding: 90px 0 105px; }
   .sf-footer { padding-right: 20px; padding-left: 20px; }
 }
-@media (min-width: 851px) and (max-width: 1100px) {
+@media (min-width: 851px) and (max-width: 1350px) {
   .sf-demo { grid-template-columns: 1fr; gap: 48px; padding-top: 95px; padding-bottom: 105px; }
   .sf-demo-copy { max-width: 560px; }
   .sf-demo-visual { width: min(100%, 650px); margin: 0 auto; }
