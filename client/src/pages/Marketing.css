@@ -112,8 +112,8 @@
 .sf-annotation b, .sf-annotation small { display: block; font-family: "DM Sans", sans-serif; }
 .sf-annotation b { color: var(--sf-ink); font-size: 12px; font-weight: 600; }
 .sf-annotation small { margin-top: 3px; }
-.sf-annotation-one { top: 31px; left: 2%; }
-.sf-annotation-two { right: 0; bottom: 39px; text-align: right; }
+.sf-annotation-one { top: 50%; left: 2%; transform: translateY(-50%); }
+.sf-annotation-two { top: 50%; right: 0; bottom: auto; text-align: right; transform: translateY(-50%); }
 .sf-feature-intro { padding-bottom: 155px; }
 .sf-marketing-heading { max-width: 620px; }
 .sf-marketing-heading.sf-align-center { margin-right: auto; margin-left: auto; text-align: center; }
