@@ -113,7 +113,7 @@
 .sf-annotation b { color: var(--sf-ink); font-size: 12px; font-weight: 600; }
 .sf-annotation small { margin-top: 3px; }
 .sf-annotation-one { top: 31px; left: 2%; }
-.sf-annotation-two { right: -5%; bottom: 39px; text-align: right; }
+.sf-annotation-two { right: 0; bottom: 39px; text-align: right; }
 .sf-feature-intro { padding-bottom: 155px; }
 .sf-marketing-heading { max-width: 620px; }
 .sf-marketing-heading.sf-align-center { margin-right: auto; margin-left: auto; text-align: center; }
@@ -233,6 +233,12 @@
   .sf-price-card .sf-check-list { padding-bottom: 10px; }
   .sf-light-section { padding: 90px 0 105px; }
   .sf-footer { padding-right: 20px; padding-left: 20px; }
+}
+@media (min-width: 851px) and (max-width: 1100px) {
+  .sf-demo { grid-template-columns: 1fr; gap: 48px; padding-top: 95px; padding-bottom: 105px; }
+  .sf-demo-copy { max-width: 560px; }
+  .sf-demo-visual { width: min(100%, 650px); margin: 0 auto; }
+  .sf-annotation { display: none; }
 }
 @media (max-width: 560px) {
   .sf-container, .sf-metrics, .sf-billing-note { width: calc(100% - 32px); }
