@@ -90,17 +90,23 @@
 .sf-window-dot { width: 8px; height: 8px; display: block; border-radius: 50%; background: var(--sf-primary); }
 .sf-window-menu { margin-left: auto; color: var(--sf-muted); letter-spacing: 3px; }
 .sf-form-body { padding: 31px 37px 30px; }
-.sf-form-progress { height: 4px; display: flex; align-items: center; gap: 10px; margin-bottom: 45px; }
-.sf-form-progress span { width: 34%; height: 100%; display: block; background: var(--sf-primary); }
-.sf-form-progress::before { content: ""; position: absolute; width: 35%; height: 4px; background: var(--sf-paper-deep); }
-.sf-form-progress b { margin-left: auto; color: var(--sf-muted); font-family: "DM Mono", monospace; font-size: 10px; font-weight: 400; }
+.sf-form-progress { position: relative; height: 4px; margin-bottom: 45px; background: var(--sf-paper-deep); }
+.sf-form-progress span { height: 100%; display: block; background: var(--sf-primary); transition: width .2s ease; }
+.sf-form-progress b { position: absolute; right: 0; bottom: 9px; color: var(--sf-muted); font-family: "DM Mono", monospace; font-size: 10px; font-weight: 400; }
 .sf-form-tag { color: var(--sf-muted); font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: .08em; }
 .sf-form-body h3 { max-width: 350px; margin: 16px 0 8px; font-size: clamp(23px, 3vw, 34px); font-weight: 500; letter-spacing: -.065em; line-height: 1.03; }
 .sf-form-helper { color: var(--sf-muted); font-size: 12px; }
-.sf-input-line { display: flex; align-items: center; justify-content: space-between; margin-top: 45px; padding-bottom: 10px; border-bottom: 1px solid var(--sf-ink); color: var(--sf-muted); font-size: 12px; }
-.sf-input-line span { padding: 3px 6px; border: 1px solid var(--sf-rule); font-size: 13px; }
+.sf-input-line { display: block; margin-top: 45px; padding-bottom: 10px; border-bottom: 1px solid var(--sf-ink); }
+.sf-input-line:focus-within { border-color: var(--sf-primary); outline: 2px solid var(--sf-primary); outline-offset: 4px; }
+.sf-input-line textarea { width: 100%; min-height: 47px; padding: 7px 0; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--sf-ink); font: 12px/1.5 "DM Sans", sans-serif; }
+.sf-input-line textarea::placeholder { color: var(--sf-muted); opacity: 1; }
+.sf-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .sf-form-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; color: var(--sf-muted); font-size: 11px; }
-.sf-form-foot button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 0; background: var(--sf-ink); color: var(--sf-paper); font-size: 11px; }
+.sf-form-foot .sf-preview-back { padding: 8px 0; border: 0; background: transparent; color: var(--sf-muted); cursor: pointer; }
+.sf-form-foot .sf-preview-back:hover:not(:disabled) { color: var(--sf-ink); }
+.sf-form-foot .sf-preview-back:disabled { opacity: .5; cursor: not-allowed; }
+.sf-form-foot .sf-preview-continue { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border: 0; background: var(--sf-ink); color: var(--sf-paper); font-size: 11px; cursor: pointer; }
+.sf-form-foot .sf-preview-continue:hover { background: var(--sf-primary); }
 .sf-annotation { position: absolute; color: var(--sf-muted); font-family: "DM Mono", monospace; font-size: 10px; }
 .sf-annotation span { display: block; margin-bottom: 5px; color: var(--sf-primary); }
 .sf-annotation b, .sf-annotation small { display: block; font-family: "DM Sans", sans-serif; }
@@ -213,6 +219,8 @@
   .sf-demo { grid-template-columns: 1fr; gap: 55px; padding-top: 95px; padding-bottom: 105px; }
   .sf-demo-copy { max-width: 500px; }
   .sf-demo-visual { width: min(100%, 560px); }
+  .sf-annotation { display: none; }
+  .sf-form-window { width: 100%; }
   .sf-feature-intro { padding-bottom: 105px; }
   .sf-feature-story { grid-template-columns: 1fr; gap: 55px; padding-bottom: 105px; }
   .sf-story-copy { max-width: 580px; }
@@ -251,7 +259,8 @@
   .sf-demo-visual { min-height: 350px; }
   .sf-form-body { padding: 24px 20px; }
   .sf-form-progress { margin-bottom: 35px; }
-  .sf-annotation { display: none; }
+  .sf-form-body { padding: 24px 18px; }
+  .sf-input-line { margin-top: 34px; }
   .sf-form-window { box-shadow: 7px 8px 0 var(--sf-yellow); }
   .sf-demo h2, .sf-marketing-heading h2, .sf-story-copy h2 { font-size: 42px; }
   .sf-card-grid { grid-template-columns: 1fr; margin-top: 38px; }

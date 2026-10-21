@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 import "./Marketing.css";
 
@@ -67,15 +68,35 @@ function SectionHeading({ overline, title, copy, align = "left" }: { overline: s
 }
 
 function MiniForm() {
-  return <div className="sf-form-window" aria-label="Example CoForms survey preview">
+  const questions = [
+    { title: "What brings you here today?", helper: "A quick note helps us understand what matters most." },
+    { title: "What are you hoping to make space for?", helper: "A sentence or two is plenty." },
+    { title: "What would make this easier for you?", helper: "Share as much or as little as you like." },
+    { title: "When would you like to get started?", helper: "There is no wrong answer." },
+    { title: "What else should we know?", helper: "Anything you share helps us make this more useful." },
+    { title: "Is there anything you would like to add?", helper: "You can always come back and change your answers." },
+  ];
+  const [step, setStep] = useState(1);
+  const [answers, setAnswers] = useState<string[]>(Array(questions.length).fill(""));
+  const question = questions[step];
+  function moveNext() {
+    if (step === questions.length - 1) {
+      setStep(0);
+      setAnswers(Array(questions.length).fill(""));
+      return;
+    }
+    setStep(current => current + 1);
+  }
+
+  return <div className="sf-form-window" aria-label="Interactive example form">
     <div className="sf-window-bar"><span className="sf-window-dot" /><span>Customer check-in <small>· draft</small></span><span className="sf-window-menu">•••</span></div>
     <div className="sf-form-body">
-      <div className="sf-form-progress"><span /><b>2 of 6</b></div>
-      <span className="sf-form-tag">QUESTION 02</span>
-      <h3>What are you hoping to make space for?</h3>
-      <p className="sf-form-helper">A sentence or two is plenty.</p>
-      <div className="sf-input-line">Type your answer here<span>↵</span></div>
-      <div className="sf-form-foot"><span>← Back</span><button type="button">Continue <Icon name="arrow" /></button></div>
+      <div className="sf-form-progress" role="progressbar" aria-label="Form progress" aria-valuemin={1} aria-valuemax={questions.length} aria-valuenow={step + 1}><span style={{ width: `${((step + 1) / questions.length) * 100}%` }} /><b>{step + 1} of {questions.length}</b></div>
+      <span className="sf-form-tag">QUESTION {String(step + 1).padStart(2, "0")}</span>
+      <h3>{question.title}</h3>
+      <p className="sf-form-helper">{question.helper}</p>
+      <label className="sf-input-line"><span className="sf-sr-only">Your answer</span><textarea rows={2} value={answers[step]} placeholder="Type your answer here" onChange={event => { const value = event.target.value; setAnswers(current => current.map((answer, index) => index === step ? value : answer)); }} /></label>
+      <div className="sf-form-foot"><button className="sf-preview-back" type="button" onClick={() => setStep(current => Math.max(0, current - 1))} disabled={step === 0}>← Back</button><button className="sf-preview-continue" type="button" onClick={moveNext}>{step === questions.length - 1 ? "Start over" : "Continue"} <Icon name="arrow" /></button></div>
     </div>
   </div>;
 }
