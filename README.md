@@ -46,6 +46,7 @@ CoForms is a modern, intuitive, full-stack form builder and survey platform buil
    GOOGLE_REDIRECT_URI="http://localhost:3000/api/auth/google/callback"
    NVIDIA_API_KEY="<your-nvidia-api-key>"
    ```
+   Register the exact value of `GOOGLE_REDIRECT_URI` as an authorized redirect URI in your Google OAuth client. For production, use the canonical HTTPS URL of your app, for example `https://forms.example.com/api/auth/google/callback`, and set the same URL in the hosting environment. The app uses this configured URL for both the authorization request and token exchange; it does not infer it from proxy headers. Local HTTP is accepted only for `localhost`, `127.0.0.1`, or `[::1]`. Preview deployments need a callback URL registered with Google for that preview, or a separate OAuth client.
 
 3. **Run database migrations:**
    ```bash

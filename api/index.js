@@ -790,26 +790,32 @@ async function accountFromRequest(req) {
 async function revokeAppSession(token) {
   await revokeSessionByHash(hashSessionToken(token));
 }
+function getGoogleRedirectUri() {
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (!redirectUri) return null;
+  try {
+    const url = new URL(redirectUri);
+    const isLocalHttp = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (url.protocol !== "https:" && !isLocalHttp || url.pathname !== "/api/auth/google/callback" || url.search || url.hash || url.username || url.password) return null;
+    return redirectUri;
+  } catch {
+    return null;
+  }
+}
 function googleConfiguration() {
-  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && getGoogleRedirectUri());
 }
 
 // server/google.ts
 var STATE_COOKIE = "spaceform_google_state";
 var NONCE_COOKIE = "spaceform_google_nonce";
-function getRedirectUri(req) {
-  const host = (req.headers["x-forwarded-host"] || req.headers.host || "").toString().split(",")[0].trim();
-  const proto = (req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http")).toString().split(",")[0].trim();
-  if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
-    return `${proto}://${host}/api/auth/google/callback`;
-  }
-  return process.env.GOOGLE_REDIRECT_URI || `${proto}://${host || "localhost:3000"}/api/auth/google/callback`;
-}
-function config(req) {
+function config() {
+  const redirectUri = getGoogleRedirectUri();
+  if (!redirectUri) throw new Error("Set GOOGLE_REDIRECT_URI to the exact registered Google OAuth callback URL.");
   return {
     clientId: process.env.GOOGLE_CLIENT_ID ?? "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    redirectUri: req ? getRedirectUri(req) : process.env.GOOGLE_REDIRECT_URI ?? ""
+    redirectUri
   };
 }
 function clearOAuthCookies(res, req) {
@@ -824,7 +830,7 @@ function constantTimeMatch(expected, actual) {
 function registerSpaceFormGoogleRoutes(app2) {
   app2.get("/api/auth/google", (req, res) => {
     if (!googleConfiguration()) {
-      res.status(503).json({ error: "Google sign-in is unavailable until GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured." });
+      res.status(503).json({ error: "Google sign-in needs GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and a valid GOOGLE_REDIRECT_URI matching the callback registered with Google." });
       return;
     }
     const state = randomBytes3(24).toString("base64url");
@@ -832,7 +838,7 @@ function registerSpaceFormGoogleRoutes(app2) {
     const options = { ...getSessionCookieOptions(req), maxAge: 6e5 };
     res.cookie(STATE_COOKIE, state, options);
     res.cookie(NONCE_COOKIE, nonce, options);
-    const { clientId, redirectUri } = config(req);
+    const { clientId, redirectUri } = config();
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", clientId);
     url.searchParams.set("redirect_uri", redirectUri);
@@ -845,7 +851,7 @@ function registerSpaceFormGoogleRoutes(app2) {
   });
   app2.get("/api/auth/google/callback", async (req, res) => {
     if (!googleConfiguration()) {
-      res.status(503).json({ error: "Google sign-in is not configured." });
+      res.status(503).json({ error: "Google sign-in needs GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and a valid GOOGLE_REDIRECT_URI matching the callback registered with Google." });
       return;
     }
     const cookies = parse(req.headers.cookie ?? "");
@@ -865,7 +871,7 @@ function registerSpaceFormGoogleRoutes(app2) {
     }
     clearOAuthCookies(res, req);
     try {
-      const { clientId, clientSecret, redirectUri } = config(req);
+      const { clientId, clientSecret, redirectUri } = config();
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },

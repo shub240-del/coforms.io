@@ -56,6 +56,25 @@ export async function accountFromRequest(req: Request): Promise<{ account: SfAcc
   return account ? { account, token } : null;
 }
 export async function revokeAppSession(token: string) { await revokeSessionByHash(hashSessionToken(token)); }
+export function getGoogleRedirectUri(): string | null {
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (!redirectUri) return null;
+  try {
+    const url = new URL(redirectUri);
+    const isLocalHttp = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (
+      (url.protocol !== "https:" && !isLocalHttp) ||
+      url.pathname !== "/api/auth/google/callback" ||
+      url.search ||
+      url.hash ||
+      url.username ||
+      url.password
+    ) return null;
+    return redirectUri;
+  } catch {
+    return null;
+  }
+}
 export function googleConfiguration() {
-  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && getGoogleRedirectUri());
 }
