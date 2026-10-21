@@ -57,5 +57,5 @@ export async function accountFromRequest(req: Request): Promise<{ account: SfAcc
 }
 export async function revokeAppSession(token: string) { await revokeSessionByHash(hashSessionToken(token)); }
 export function googleConfiguration() {
-  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }

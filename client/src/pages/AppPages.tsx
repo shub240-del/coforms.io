@@ -157,7 +157,8 @@ export const SpaceFormLogo = CoFormsLogo;
 
 function AppShell({ children, title }: { children: React.ReactNode; title: string }) {
   const [location, setLocation] = useLocation();
-  const logout = trpc.auth.logout.useMutation({ onSuccess: () => setLocation("/") });
+  const utils = trpc.useUtils();
+  const logout = trpc.auth.logout.useMutation({ onSuccess: () => { utils.auth.me.setData(undefined, null); setLocation("/"); } });
   const [menuOpen, setMenuOpen] = useState(false);
   const nav = [
     { href: "/dashboard", label: "My forms", icon: LayoutDashboard },
@@ -219,10 +220,10 @@ export function AuthScreen({ mode = "login" }: { mode?: "login" | "signup" }) {
     } else login.mutate({ email, password });
   }
   const points = isSignup
-    ? ["Unlimited forms and responses, free forever", "27 question types, from short text to scheduling", "Public shareable links — no login for respondents", "CSV export whenever you want it"]
+    ? ["Build forms in your workspace", "27 question types, from short text to scheduling", "Share public links with respondents", "Export response data as CSV"]
     : ["Every form, draft or live, in one dashboard", "Responses land the moment someone submits", "Per-question completion — see where people quit"];
   return <AuthFrame heading={isSignup ? "Start collecting responses today" : "Your forms are exactly where you left them"} points={points}>
-    <div className="sf-auth-card"><Link href="/" className="sf-auth-mobile-brand"><SpaceFormLogo /></Link><div className="sf-auth-heading"><h1>{isSignup ? "Join CoForms" : "Sign in to CoForms"}</h1><p>{isSignup ? "Free forever — no credit card required." : "Enter your credentials below to continue."}</p></div>
+    <div className="sf-auth-card"><Link href="/" className="sf-auth-mobile-brand"><SpaceFormLogo /></Link><div className="sf-auth-heading"><h1>{isSignup ? "Join CoForms" : "Sign in to CoForms"}</h1><p>{isSignup ? "Create an account to start building forms." : "Enter your credentials below to continue."}</p></div>
       <button className="sf-google-btn" onClick={() => { if (googleEnabled.data?.enabled) window.location.assign("/api/auth/google"); else toast.message("Google sign-in", { description: "Connect Google OAuth credentials to enable this option." }); }}><span className="sf-google-g">G</span>Continue with Google</button>
       {!googleEnabled.isLoading && !googleEnabled.data?.enabled && <p className="sf-provider-note">{googleEnabled.data?.message ?? "Google sign-in needs provider credentials before it can be enabled."}</p>}
       <div className="sf-or"><span />or continue with email<span /></div>

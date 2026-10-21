@@ -63,7 +63,7 @@ function Button({ children, quiet = false, href = "/signup" }: { children: React
 }
 
 function SectionHeading({ overline, title, copy, align = "left" }: { overline: string; title: string; copy?: string; align?: "left" | "center" }) {
-  return <div className={`sf-section-heading sf-align-${align}`}><span className="sf-overline">{overline}</span><h2>{title}</h2>{copy && <p>{copy}</p>}</div>;
+  return <div className={`sf-marketing-heading sf-align-${align}`}><span className="sf-overline">{overline}</span><h2>{title}</h2>{copy && <p>{copy}</p>}</div>;
 }
 
 function MiniForm() {
