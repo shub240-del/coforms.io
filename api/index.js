@@ -2234,9 +2234,9 @@ function createExpressApp() {
   return app2;
 }
 
-// api/index.ts
+// server/vercel.ts
 var app = createExpressApp();
-var index_default = app;
+var vercel_default = app;
 export {
-  index_default as default
+  vercel_default as default
 };
