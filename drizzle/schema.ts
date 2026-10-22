@@ -48,6 +48,15 @@ export const sfSessions = mysqlTable("spaceform_sessions", {
   revokedAt: timestamp("revokedAt"),
 }, table => ({ accountIdx: index("spaceform_sessions_account_idx").on(table.accountId) }));
 
+export const sfPasswordResetTokens = mysqlTable("spaceform_password_reset_tokens", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  accountId: varchar("accountId", { length: 36 }).notNull().references(() => sfAccounts.id, { onDelete: "cascade" }),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+}, table => ({ accountCreatedIdx: index("spaceform_password_reset_account_created_idx").on(table.accountId, table.createdAt) }));
+
 export const sfWorkspaces = mysqlTable("spaceform_workspaces", {
   id: varchar("id", { length: 36 }).primaryKey(),
   ownerAccountId: varchar("ownerAccountId", { length: 36 }).notNull(),

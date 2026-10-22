@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, SfAccount, sfAccounts, sfAnswers, sfForms, sfQuestions, sfResponses, sfResponseEvents, sfSessions, sfUploads, sfWorkspaceMembers, sfWorkspaces, users } from "../drizzle/schema";
+import { InsertUser, SfAccount, sfAccounts, sfAnswers, sfForms, sfPasswordResetTokens, sfQuestions, sfResponses, sfResponseEvents, sfSessions, sfUploads, sfWorkspaceMembers, sfWorkspaces, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -30,6 +30,41 @@ export async function getAccountByEmail(email: string) { const db = await getDb(
 export async function getAccountById(id: string) { const db = await getDb(); if (!db) throw new Error("Database is not available"); const rows = await db.select().from(sfAccounts).where(eq(sfAccounts.id, id)).limit(1); return rows[0]; }
 export async function getAccountByProviderSubject(provider: string, providerSubject: string) { const db = await getDb(); if (!db) throw new Error("Database is not available"); const rows = await db.select().from(sfAccounts).where(and(eq(sfAccounts.provider, provider), eq(sfAccounts.providerSubject, providerSubject))).limit(1); return rows[0]; }
 export async function upsertGoogleAccount(input: { subject: string; email: string; name: string }) { const existing = await getAccountByProviderSubject("google", input.subject); if (existing) return existing; const byEmail = await getAccountByEmail(input.email); if (byEmail) return byEmail; return insertAccount({ id: crypto.randomUUID(), email: input.email, name: input.name, passwordHash: null, provider: "google", providerSubject: input.subject }); }
+export async function createPasswordResetToken(accountId: string, tokenHash: string, expiresAt: Date, now = new Date()) {
+  const db = requireDb();
+  return db.transaction(async tx => {
+    const accounts = await tx.select({ id: sfAccounts.id }).from(sfAccounts).where(eq(sfAccounts.id, accountId)).limit(1).for("update");
+    if (!accounts[0]) return false;
+    const recent = await tx.select({ count: sql<number>`count(*)` }).from(sfPasswordResetTokens).where(and(eq(sfPasswordResetTokens.accountId, accountId), gte(sfPasswordResetTokens.createdAt, new Date(now.getTime() - 60 * 60 * 1000))));
+    if (Number(recent[0]?.count ?? 0) >= 3) return false;
+    await tx.delete(sfPasswordResetTokens).where(lt(sfPasswordResetTokens.expiresAt, new Date(now.getTime() - 24 * 60 * 60 * 1000)));
+    await tx.update(sfPasswordResetTokens).set({ consumedAt: now }).where(and(eq(sfPasswordResetTokens.accountId, accountId), isNull(sfPasswordResetTokens.consumedAt)));
+    await tx.insert(sfPasswordResetTokens).values({ id: crypto.randomUUID(), accountId, tokenHash, expiresAt });
+    return true;
+  });
+}
+export async function isPasswordResetTokenValid(tokenHash: string, now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const rows = await db.select({ id: sfPasswordResetTokens.id }).from(sfPasswordResetTokens).where(and(eq(sfPasswordResetTokens.tokenHash, tokenHash), isNull(sfPasswordResetTokens.consumedAt), gte(sfPasswordResetTokens.expiresAt, now))).limit(1);
+  return Boolean(rows[0]);
+}
+export async function consumePasswordResetToken(tokenHash: string, passwordHash: string, now = new Date()) {
+  const db = requireDb();
+  return db.transaction(async tx => {
+    const rows = await tx.select().from(sfPasswordResetTokens).where(and(eq(sfPasswordResetTokens.tokenHash, tokenHash), isNull(sfPasswordResetTokens.consumedAt), gte(sfPasswordResetTokens.expiresAt, now))).limit(1).for("update");
+    const reset = rows[0];
+    if (!reset) return false;
+    await tx.update(sfPasswordResetTokens).set({ consumedAt: now }).where(and(eq(sfPasswordResetTokens.id, reset.id), isNull(sfPasswordResetTokens.consumedAt)));
+    await tx.update(sfAccounts).set({ passwordHash }).where(eq(sfAccounts.id, reset.accountId));
+    await tx.update(sfSessions).set({ revokedAt: now }).where(and(eq(sfSessions.accountId, reset.accountId), isNull(sfSessions.revokedAt)));
+    return true;
+  });
+}
+export async function invalidatePasswordResetToken(tokenHash: string, now = new Date()) {
+  const db = requireDb();
+  await db.update(sfPasswordResetTokens).set({ consumedAt: now }).where(and(eq(sfPasswordResetTokens.tokenHash, tokenHash), isNull(sfPasswordResetTokens.consumedAt)));
+}
 export async function insertSession(session: { id: string; accountId: string; tokenHash: string; expiresAt: Date }) { const db = requireDb(); await db.insert(sfSessions).values(session); }
 export async function getAccountBySessionHash(tokenHash: string) { const db = await getDb(); if (!db) throw new Error("Database is not available"); const rows = await db.select({ account: sfAccounts, session: sfSessions }).from(sfSessions).innerJoin(sfAccounts, eq(sfSessions.accountId, sfAccounts.id)).where(and(eq(sfSessions.tokenHash, tokenHash), isNull(sfSessions.revokedAt))).limit(1); const row = rows[0]; return row && row.session.expiresAt > new Date() ? row.account : undefined; }
 export async function revokeSessionByHash(tokenHash: string) { const db = requireDb(); await db.update(sfSessions).set({ revokedAt: new Date() }).where(eq(sfSessions.tokenHash, tokenHash)); }

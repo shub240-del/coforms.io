@@ -3,10 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { decodeSarvamAudio, MAX_SARVAM_AUDIO_BASE64_LENGTH } from "./audio";
 import { COOKIE_NAME } from "@shared/const";
-import { publicAccount, SPACEFORM_SESSION_COOKIE, createAppSession, googleConfiguration, loginAccount, revokeAppSession, signupAccount } from "./auth";
+import { publicAccount, SPACEFORM_SESSION_COOKIE, createAppSession, googleConfiguration, hashPassword, loginAccount, normalizeEmail, revokeAppSession, signupAccount } from "./auth";
 import { generateDraft, generateInterviewTurn } from "./ai";
 import { sarvamSTT, sarvamTTS } from "./sarvam";
-import { bindPublicUploadsToResponse, completeFormResponse, createForm, getDb, getFormForAccount, getPublicUploadForQuestion, getPublishedFormBySlug, getQuestions, getAllQuestions, listFormsForAccount, listResponsesForAccount, progressTokenMatches, recordResponseQuestionView, setFormPublished, startFormResponse, updateForm } from "./db";
+import { bindPublicUploadsToResponse, completeFormResponse, consumePasswordResetToken, createForm, createPasswordResetToken, getAccountByEmail, getDb, getFormForAccount, getPublicUploadForQuestion, getPublishedFormBySlug, getQuestions, getAllQuestions, invalidatePasswordResetToken, isPasswordResetTokenValid, listFormsForAccount, listResponsesForAccount, progressTokenMatches, recordResponseQuestionView, setFormPublished, startFormResponse, updateForm } from "./db";
+import { createPasswordResetTokenPair, hashPasswordResetToken, passwordResetExpiresAt, passwordResetIsConfigured, passwordResetLink, sendPasswordResetEmail } from "./passwordReset";
 import { answersSchema, editRequiresUnpublishForPayment, parseJson, publicQuestion, questionInputSchema, respondentQuestion, responsesToCsv, validateQuestionAnswers } from "./forms";
 import { preparePublicUpload } from "./uploads";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -29,9 +30,37 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(({ ctx }) => ctx.appUser ? publicAccount(ctx.appUser) : null),
     googleEnabled: publicProcedure.query(() => ({ enabled: googleConfiguration(), message: googleConfiguration() ? "Google sign-in is configured." : "Google sign-in is unavailable until Google credentials are configured." })),
+    passwordResetEnabled: publicProcedure.query(() => ({ enabled: passwordResetIsConfigured() })),
     signup: publicProcedure.input(accountInput).mutation(async ({ input, ctx }) => { try { const account = await signupAccount(input.name, input.email, input.password); const session = await createAppSession(account.id); setAppCookie(ctx.res, session.token, session.expiresAt); return publicAccount(account); } catch (error) { throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Unable to create account." }); } }),
     login: publicProcedure.input(z.object({ email: z.string().email(), password: z.string().min(1).max(200) })).mutation(async ({ input, ctx }) => { try { const account = await loginAccount(input.email, input.password); const session = await createAppSession(account.id); setAppCookie(ctx.res, session.token, session.expiresAt); return publicAccount(account); } catch (error) { throw new TRPCError({ code: "UNAUTHORIZED", message: error instanceof Error ? error.message : "Invalid email or password." }); } }),
-    requestPasswordReset: publicProcedure.input(z.object({ email: z.string().email() })).mutation(async () => ({ status: "unavailable" as const, message: "Password reset email delivery is not configured; no email was sent." })),
+    requestPasswordReset: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ input }) => {
+      if (!passwordResetIsConfigured()) {
+        return { status: "unavailable" as const, message: "Password recovery is temporarily unavailable." };
+      }
+      const account = await getAccountByEmail(normalizeEmail(input.email));
+      if (account?.passwordHash) {
+        const reset = createPasswordResetTokenPair();
+        const now = new Date();
+        const created = await createPasswordResetToken(account.id, reset.tokenHash, passwordResetExpiresAt(now), now);
+        if (created) {
+          try {
+            await sendPasswordResetEmail(account.email, passwordResetLink(reset.token));
+          } catch (error) {
+            console.error("[CoForms auth] Password reset email delivery failed.", error instanceof Error ? error.message : "Unknown error.");
+            await invalidatePasswordResetToken(reset.tokenHash, now);
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Unable to send a password reset email right now." });
+          }
+        }
+      }
+      return { status: "accepted" as const, message: "If an account uses this email, reset instructions will be sent." };
+    }),
+    resetPassword: publicProcedure.input(z.object({ token: z.string().min(40).max(64), password: z.string().min(12).max(200) })).mutation(async ({ input }) => {
+      const tokenHash = hashPasswordResetToken(input.token);
+      if (!(await isPasswordResetTokenValid(tokenHash))) throw new TRPCError({ code: "BAD_REQUEST", message: "This password reset link is invalid or expired. Request a new link." });
+      const updated = await consumePasswordResetToken(tokenHash, await hashPassword(input.password));
+      if (!updated) throw new TRPCError({ code: "BAD_REQUEST", message: "This password reset link is invalid or expired. Request a new link." });
+      return { success: true as const };
+    }),
     logout: publicProcedure.mutation(async ({ ctx }) => { if (ctx.appSessionToken) { await revokeAppSession(ctx.appSessionToken); } const cookieOptions = getSessionCookieOptions(ctx.req); ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 }); ctx.res.clearCookie(SPACEFORM_SESSION_COOKIE, { ...cookieOptions, maxAge: -1 }); return { success: true } as const; }),
   }),
   forms: router({

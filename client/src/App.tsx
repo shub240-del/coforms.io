@@ -5,7 +5,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { AuthScreen, Dashboard, ForgotPassword, FormBuilder, NewForm, PublicForm, ResponsesPage } from "./pages/AppPages";
+import { AuthScreen, Dashboard, ForgotPassword, FormBuilder, NewForm, PublicForm, ResetPassword, ResponsesPage } from "./pages/AppPages";
 import { LegalPage, MarketingHome, MarketingPage } from "./pages/Marketing";
 import { trpc } from "./lib/trpc";
 
@@ -46,6 +46,7 @@ function Router() {
       <Route path="/signup" component={() => <AuthScreen mode="signup" />} />
       <Route path="/login" component={() => <AuthScreen mode="login" />} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/dashboard" component={() => <ProtectedPage><Dashboard /></ProtectedPage>} />
       <Route path="/forms/new" component={() => <ProtectedPage><NewForm /></ProtectedPage>} />
       <Route path="/forms/:id/responses" component={() => <ProtectedPage><ResponsesPage /></ProtectedPage>} />

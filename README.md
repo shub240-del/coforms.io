@@ -45,8 +45,13 @@ CoForms is a modern, intuitive, full-stack form builder and survey platform buil
    GOOGLE_CLIENT_SECRET="<your-google-client-secret>"
    GOOGLE_REDIRECT_URI="http://localhost:3000/api/auth/google/callback"
    NVIDIA_API_KEY="<your-nvidia-api-key>"
+   RESEND_API_KEY="<your-resend-api-key>"
+   RESEND_FROM_EMAIL="CoForms <noreply@your-verified-domain.com>"
+   PUBLIC_APP_URL="http://localhost:3000"
    ```
    Register the exact value of `GOOGLE_REDIRECT_URI` as an authorized redirect URI in your Google OAuth client. For production, use the canonical HTTPS URL of your app, for example `https://forms.example.com/api/auth/google/callback`, and set the same URL in the hosting environment. The app uses this configured URL for both the authorization request and token exchange; it does not infer it from proxy headers. Local HTTP is accepted only for `localhost`, `127.0.0.1`, or `[::1]`. Preview deployments need a callback URL registered with Google for that preview, or a separate OAuth client.
+
+   Password recovery is enabled only when `RESEND_API_KEY`, a sender verified with Resend in `RESEND_FROM_EMAIL`, and the canonical app origin in `PUBLIC_APP_URL` are set. Use the production HTTPS origin in production. Reset tokens expire after 30 minutes, are single-use, and are stored only as hashes.
 
 3. **Run database migrations:**
    ```bash

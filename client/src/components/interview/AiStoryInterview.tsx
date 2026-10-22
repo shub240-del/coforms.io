@@ -86,7 +86,7 @@ export function AiStoryInterview({
     }
   }, [currentIndex, viewState]);
 
-  // When starting the interview, link name & email if matching question exists
+  // Link name and email to matching form questions before starting.
   const handleStartInterview = (e: React.FormEvent) => {
     e.preventDefault();
     if (respondentEmail.trim()) {
@@ -308,7 +308,7 @@ export function AiStoryInterview({
   }
 
   // =========================================================================
-  // VIEW 2: CONVERSATIONAL CHAT INTERVIEW SCREEN
+  // VIEW 2: GUIDED CONVERSATION
   // =========================================================================
   const progressPercent = Math.min(
     100,

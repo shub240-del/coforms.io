@@ -290,8 +290,51 @@ export function AuthScreen({ mode = "login" }: { mode?: "login" | "signup" }) {
 }
 
 export function ForgotPassword() {
-  return <AuthFrame heading="Password recovery is not available yet" points={["Your current password still works", "Sign in to access your forms and responses"]}>
-    <div className="sf-auth-card"><Link href="/"><SpaceFormLogo /></Link><div className="sf-auth-heading"><h1>Password recovery unavailable</h1><p>CoForms cannot send password reset emails yet. You can return to sign in with your current password.</p></div><p className="sf-auth-switch"><Link href="/login">Back to sign in</Link></p></div>
+  const [email, setEmail] = useState("");
+  const resetStatus = trpc.auth.passwordResetEnabled.useQuery(undefined, { retry: false });
+  const requestReset = trpc.auth.requestPasswordReset.useMutation();
+  const enabled = Boolean(resetStatus.data?.enabled);
+  return <AuthFrame heading={enabled ? "Reset your password" : "Password recovery unavailable"} points={["Reset links expire after 30 minutes", "Your existing sessions are signed out after a reset"]}>
+    <div className="sf-auth-card"><Link href="/"><SpaceFormLogo /></Link><div className="sf-auth-heading"><h1>{enabled ? "Reset your password" : "Password recovery unavailable"}</h1><p>{enabled ? "Enter your account email and we’ll send a secure reset link if an account matches." : "Password reset email delivery is not configured yet. You can still sign in with your current password."}</p></div>
+      {resetStatus.isLoading && <p role="status">Checking password recovery availability…</p>}
+      {resetStatus.isError && <p className="sf-form-error" role="alert">Could not check password recovery availability. Please try again later.</p>}
+      {enabled && <form className="sf-auth-form" onSubmit={event => { event.preventDefault(); requestReset.mutate({ email }); }}>
+        <label>Email<input autoComplete="email" type="email" value={email} onChange={event => setEmail(event.target.value)} required /></label>
+        {requestReset.data && <p role="status">{requestReset.data.message}</p>}
+        {requestReset.error && <p className="sf-form-error" role="alert">{requestReset.error.message}</p>}
+        <button className="sf-primary-btn sf-auth-submit" disabled={requestReset.isPending}>{requestReset.isPending ? <LoaderCircle size={17} className="sf-spin" /> : null}Send reset link</button>
+      </form>}
+      <p className="sf-auth-switch"><Link href="/login">Back to sign in</Link></p>
+    </div>
+  </AuthFrame>;
+}
+
+export function ResetPassword() {
+  const [token, setToken] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const resetPassword = trpc.auth.resetPassword.useMutation();
+  useEffect(() => {
+    setToken(new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
+  }, []);
+
+  return <AuthFrame heading="Choose a new password" points={["Use at least 12 characters", "This link can only be used once"]}>
+    <div className="sf-auth-card"><Link href="/"><SpaceFormLogo /></Link><div className="sf-auth-heading"><h1>Choose a new password</h1><p>Set a new password for your CoForms account.</p></div>
+      {!token && <p className="sf-form-error" role="alert">This reset link is missing or invalid. Request a new one to continue.</p>}
+      {resetPassword.data?.success ? <div><p role="status">Your password has been updated. Sign in with your new password.</p><p className="sf-auth-switch"><Link href="/login">Back to sign in</Link></p></div> : token && <form className="sf-auth-form" onSubmit={event => {
+        event.preventDefault();
+        setError("");
+        if (password !== confirm) { setError("Those passwords do not match."); return; }
+        resetPassword.mutate({ token, password });
+      }}>
+        <label>New password<input autoComplete="new-password" type="password" minLength={12} maxLength={200} value={password} onChange={event => setPassword(event.target.value)} required /></label>
+        <label>Confirm new password<input autoComplete="new-password" type="password" minLength={12} maxLength={200} value={confirm} onChange={event => setConfirm(event.target.value)} required /></label>
+        {error && <p className="sf-form-error" role="alert">{error}</p>}
+        {resetPassword.error && <p className="sf-form-error" role="alert">{resetPassword.error.message}</p>}
+        <button className="sf-primary-btn sf-auth-submit" disabled={resetPassword.isPending}>{resetPassword.isPending ? <LoaderCircle size={17} className="sf-spin" /> : null}Update password</button>
+      </form>}
+    </div>
   </AuthFrame>;
 }
 
@@ -503,7 +546,7 @@ export function FormBuilder() {
         {selectedQuestion && <div className="sf-selected-question"><div className="sf-selected-header"><span><b>{String(form.questions.findIndex(q => q.id === selected) + 1).padStart(2, "0")}</b> · {FIELD_TYPES.find(f => f.type === selectedQuestion.type)?.name}</span><div><button onClick={() => moveQuestion(form.questions.findIndex(q => q.id === selected), -1)} title="Move up"><ChevronLeft size={16} /></button><button onClick={() => moveQuestion(form.questions.findIndex(q => q.id === selected), 1)} title="Move down"><ChevronRight size={16} /></button><button onClick={() => deleteQuestion(selected)} title="Delete question"><Trash2 size={15} /></button></div></div><label className="sf-edit-label">QUESTION<input value={selectedQuestion.title} onChange={e => changeQuestion(selected, { title: e.target.value })} /></label><label className="sf-edit-label">DESCRIPTION <span className="sf-muted-optional">OPTIONAL</span><textarea value={selectedQuestion.description ?? ""} onChange={e => changeQuestion(selected, { description: e.target.value })} placeholder="Add a little context…" rows={2} /></label>{["dropdown", "single_choice", "multiple_choice", "image_choice", "ranking", "matrix"].includes(selectedQuestion.type) && <label className="sf-edit-label">OPTIONS <textarea value={questionOptions(selectedQuestion).join("\n")} onChange={e => changeQuestion(selected, { options: e.target.value.split("\n").filter(Boolean) })} rows={4} placeholder="One option per line" /></label>}<label className="sf-toggle-line"><span><b>Required</b><small>People need to answer this before continuing.</small></span><input type="checkbox" checked={Boolean(selectedQuestion.required)} onChange={e => changeQuestion(selected, { required: e.target.checked })} /></label><div className="sf-question-preview"><span className="sf-preview-overline">PREVIEW</span><FieldInput question={selectedQuestion} value={undefined} onChange={() => {}} disabled /></div></div>}
         {form.questions.length > 0 && <button className="sf-canvas-add" onClick={() => addQuestion("short_text")}><Plus size={15} /> Add a question</button>}
       </div></div><div className="sf-canvas-footer"><span><span className="sf-footer-dot" /> Autosave is on</span><span>Made with <b>coforms</b></span></div></section>
-      <aside className="sf-builder-inspector"><div className="sf-inspector-title"><span>FORM SETTINGS</span><MoreHorizontal size={17} /></div><label>Form name<input value={form.title} onChange={e => setForm(v => v ? { ...v, title: e.target.value } : v)} /></label><label>Intro text<textarea value={form.description ?? ""} onChange={e => setForm(v => v ? { ...v, description: e.target.value } : v)} rows={3} placeholder="Tell people what this is about" /></label><label className="sf-toggle-line"><span><b>Conversational interview mode</b><small>Offer respondents a natural AI-guided conversational experience.</small></span><input type="checkbox" checked={Boolean(form.settings?.conversationalMode)} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), conversationalMode: e.target.checked } } : v)} /></label><label>Thank-you message<textarea value={form.settings?.thankYouText ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), thankYouText: e.target.value } } : v)} rows={2} placeholder="Thanks for sharing." /></label><label>After-submit redirect<input value={form.settings?.redirectUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), redirectUrl: e.target.value } } : v)} placeholder="/thanks or https://example.com/thanks" /></label><label>Logo image URL<input value={form.settings?.logoUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), logoUrl: e.target.value } } : v)} placeholder="https://example.com/logo.png" /></label><p className="sf-helper-copy">Redirects accept a local path or secure HTTPS address.</p><div className="sf-inspector-summary"><span>Questions</span><b>{form.questions.length}</b></div><div className="sf-inspector-summary"><span>Responses</span><b>{form.responseCount ?? 0}</b></div><Link className="sf-inspector-link" href={`/forms/${form.id}/responses`}><BarChart3 size={15} /> View responses <ArrowRight size={14} /></Link><button className="sf-inspector-link" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share your form <ArrowRight size={14} /></button><div className="sf-inspector-tip"><Sparkles size={14} /><span><b>A good form is a short one.</b><small>Keep each question focused and easy to answer.</small></span></div></aside>
+      <aside className="sf-builder-inspector"><div className="sf-inspector-title"><span>FORM SETTINGS</span><MoreHorizontal size={17} /></div><label>Form name<input value={form.title} onChange={e => setForm(v => v ? { ...v, title: e.target.value } : v)} /></label><label>Intro text<textarea value={form.description ?? ""} onChange={e => setForm(v => v ? { ...v, description: e.target.value } : v)} rows={3} placeholder="Tell people what this is about" /></label><label className="sf-toggle-line"><span><b>Guided conversation mode</b><small>Offer respondents a natural AI-guided voice or text experience.</small></span><input type="checkbox" checked={Boolean(form.settings?.conversationalMode)} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), conversationalMode: e.target.checked } } : v)} /></label><label>Thank-you message<textarea value={form.settings?.thankYouText ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), thankYouText: e.target.value } } : v)} rows={2} placeholder="Thanks for sharing." /></label><label>After-submit redirect<input value={form.settings?.redirectUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), redirectUrl: e.target.value } } : v)} placeholder="/thanks or https://example.com/thanks" /></label><label>Logo image URL<input value={form.settings?.logoUrl ?? ""} onChange={e => setForm(v => v ? { ...v, settings: { ...(v.settings ?? {}), logoUrl: e.target.value } } : v)} placeholder="https://example.com/logo.png" /></label><p className="sf-helper-copy">Redirects accept a local path or secure HTTPS address.</p><div className="sf-inspector-summary"><span>Questions</span><b>{form.questions.length}</b></div><div className="sf-inspector-summary"><span>Responses</span><b>{form.responseCount ?? 0}</b></div><Link className="sf-inspector-link" href={`/forms/${form.id}/responses`}><BarChart3 size={15} /> View responses <ArrowRight size={14} /></Link><button className="sf-inspector-link" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share your form <ArrowRight size={14} /></button><div className="sf-inspector-tip"><Sparkles size={14} /><span><b>A good form is a short one.</b><small>Keep each question focused and easy to answer.</small></span></div></aside>
     </div>
     {aiOpen && <div className="sf-modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setAiOpen(false)}><section className="sf-modal"><button className="sf-modal-close" onClick={() => setAiOpen(false)}><X size={18} /></button><span className="sf-eyebrow"><WandSparkles size={13} /> AI FORM DRAFT</span><h2>What do you want to build?</h2><p>Describe your form. AI will draft the questions, order and field types.</p><textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="e.g. Feedback from people who came to our Saturday baking class…" rows={4} /><button className="sf-primary-btn" disabled={!prompt.trim() || draft.isPending} onClick={() => draft.mutate({ prompt })}>{draft.isPending ? <><LoaderCircle className="sf-spin" size={16} /> Drafting…</> : <><Sparkles size={16} /> Draft my questions</>}</button><small>Your draft stays editable. No payment provider is connected.</small></section></div>}
     {shareOpen && <ShareDialog form={form} url={shareUrl} onClose={() => setShareOpen(false)} />}
@@ -752,11 +795,11 @@ export function PublicForm() {
                 type="button"
                 className="sf-voice-toggle-btn active"
                 onClick={() => setDisplayMode("interview")}
-                title="Switch to AI Story Interview"
+                title="Switch to guided voice form"
                 style={{ background: "linear-gradient(180deg, #fef08a 0%, #efc54a 100%)", color: "#141312", fontWeight: 600 }}
               >
                 <Sparkles size={13} />
-                <span>AI Story Interview</span>
+                <span>Guided voice form</span>
               </button>
             )}
             {voice.isSupported ? (
