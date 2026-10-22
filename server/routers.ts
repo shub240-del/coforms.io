@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { decodeSarvamAudio, MAX_SARVAM_AUDIO_BASE64_LENGTH } from "./audio";
 import { COOKIE_NAME } from "@shared/const";
 import { publicAccount, SPACEFORM_SESSION_COOKIE, createAppSession, googleConfiguration, loginAccount, revokeAppSession, signupAccount } from "./auth";
 import { generateDraft, generateInterviewTurn } from "./ai";
@@ -211,11 +212,11 @@ export const appRouter = router({
     }),
     // ── Sarvam AI: STT proxy ─────────────────────────────────────────────
     sarvamSTT: publicProcedure.input(z.object({
-      audioBase64: z.string().min(1),
+      audioBase64: z.string().min(1).max(MAX_SARVAM_AUDIO_BASE64_LENGTH),
       mimeType: z.string().max(60).optional().default("audio/webm"),
       language: z.string().max(10).optional().default("hi"),
     })).mutation(async ({ input }) => {
-      const buf = Buffer.from(input.audioBase64, "base64");
+      const buf = decodeSarvamAudio(input.audioBase64);
       const result = await sarvamSTT({ audioBuffer: buf, mimeType: input.mimeType, language: input.language });
       if ("error" in result) throw new TRPCError({ code: "BAD_REQUEST", message: result.error });
       return result; // { transcript: string; language_code: string }

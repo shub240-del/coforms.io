@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editRequiresUnpublishForPayment, respondentQuestion, validateQuestionAnswers, type QuestionInput } from "./forms";
+import { editRequiresUnpublishForPayment, respondentQuestion, responsesToCsv, validateQuestionAnswers, type QuestionInput } from "./forms";
 
 const question = (overrides: Partial<QuestionInput & { id: string }> = {}): QuestionInput & { id: string } => ({
   id: "00000000-0000-4000-8000-000000000001",
@@ -55,5 +55,13 @@ describe("form answer validation", () => {
     expect(editRequiresUnpublishForPayment("published", [{ type: "payment" }])).toBe(true);
     expect(editRequiresUnpublishForPayment("draft", [{ type: "payment" }])).toBe(false);
     expect(editRequiresUnpublishForPayment("published", [{ type: "short_text" }])).toBe(false);
+  });
+
+  it("exports respondent answers without allowing spreadsheet formulas", () => {
+    const csv = responsesToCsv(
+      [{ submittedAt: new Date("2026-10-22T00:00:00.000Z"), answers: { answer: '=HYPERLINK("https://example.invalid")' } }],
+      [{ id: "answer", label: "Answer" }],
+    );
+    expect(csv).toContain('"\'=HYPERLINK(""https://example.invalid"")"');
   });
 });

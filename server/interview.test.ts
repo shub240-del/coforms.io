@@ -1,14 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { generateInterviewTurn } from "./ai";
 import { validateQuestionAnswers, type QuestionInput } from "./forms";
 import { progressTokenMatches } from "./db";
 import { createHash } from "node:crypto";
 
-try {
-  (process as any).loadEnvFile?.(".env");
-} catch {
-  // Ignore if already loaded or file not found
-}
+vi.mock("./_core/llm", () => ({
+  invokeLLM: vi.fn(async ({ messages }: { messages: Array<{ content: unknown }> }) => {
+    const utterance = String(messages.at(-1)?.content ?? "");
+    const proposedValue = new Map<string, unknown>([
+      ["I would definitely give it a 5", 5],
+      ["I work as a Designer mostly", "Designer"],
+      ["Four stars", 4],
+      ["Sí, por supuesto", "Yes"],
+      ["We have 8 people on our team", 8],
+    ]).get(utterance) ?? null;
+    const clarificationNeeded = proposedValue === null;
+    return {
+      choices: [{
+        index: 0,
+        message: {
+          role: "assistant",
+          content: JSON.stringify({
+            assistantMessage: clarificationNeeded ? "Could you clarify?" : "Thanks, noted.",
+            proposedValue,
+            displayValue: proposedValue === null ? "" : String(proposedValue),
+            clarificationNeeded,
+            clarificationReason: clarificationNeeded ? "Please provide a clear answer." : null,
+          }),
+        },
+        finish_reason: "stop",
+      }],
+    };
+  }),
+  listLLMModels: vi.fn(),
+}));
 
 describe("Stage 1 Interview Turn & Extraction Logic", { timeout: 35000 }, () => {
   const sampleQuestion: QuestionInput & { id: string } = {

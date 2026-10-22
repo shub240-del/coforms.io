@@ -150,7 +150,8 @@ export function validateQuestionAnswers(questions: Array<QuestionInput & { id: s
 
 function csvCell(value: unknown): string {
   const raw = Array.isArray(value) || (value && typeof value === "object") ? JSON.stringify(value) : String(value ?? "");
-  return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+  const safeValue = /^[\u0000-\u0020]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return /[",\n\r]/.test(safeValue) ? `"${safeValue.replace(/"/g, '""')}"` : safeValue;
 }
 export function responsesToCsv(rows: Array<{ submittedAt?: Date | null; answers: Record<string, unknown> }>, columns: Array<{ id: string; label: string }>) {
   const header = ["submitted_at", ...columns.map(column => column.label)];

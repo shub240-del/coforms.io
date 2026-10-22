@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { createDebouncedSave } from "@/lib/debouncedSave";
+import { csvCell, hasResponseValue } from "@/lib/responseData";
 import { useVoiceForm } from "@/hooks/useVoiceForm";
 import { InteractiveVoiceAgent } from "@/components/interview/InteractiveVoiceAgent";
 import "./AppPages.css";
@@ -125,8 +127,7 @@ function shouldShowQuestion(question: Question, answers: Record<string, any>) {
   return question.logic.operator === "not_equals" ? lhs !== rhs : lhs === rhs;
 }
 function saveCsv(filename: string, columns: string[], rows: string[][]) {
-  const quote = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-  const csv = [columns, ...rows].map(row => row.map(quote).join(",")).join("\r\n");
+  const csv = [columns, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n");
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }));
   link.download = filename;
@@ -289,17 +290,8 @@ export function AuthScreen({ mode = "login" }: { mode?: "login" | "signup" }) {
 }
 
 export function ForgotPassword() {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const reset = trpc.auth.requestPasswordReset.useMutation({
-    onSuccess: result => {
-      if ((result as any)?.emailSent) setMessage("If an account matches, reset instructions have been sent.");
-      else setMessage("Email delivery is not configured yet. Ask the workspace owner to connect a mail provider.");
-    },
-    onError: error => setMessage(error.message),
-  });
-  return <AuthFrame heading="Your forms are right where you left them" points={["A secure link to get back into your account", "Your forms and responses stay in your workspace"]}>
-    <div className="sf-auth-card"><Link href="/"><SpaceFormLogo /></Link><div className="sf-auth-heading"><h1>Reset your password</h1><p>Enter the email address on your account.</p></div><form className="sf-auth-form" onSubmit={e => { e.preventDefault(); setMessage(""); reset.mutate({ email }); }}><label>Email<input type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required /></label>{message && <div className="sf-form-note" role="status">{message}</div>}<button className="sf-primary-btn" disabled={reset.isPending}>{reset.isPending ? "Checking…" : "Send reset instructions"}</button></form><p className="sf-auth-switch"><Link href="/login">Back to sign in</Link></p></div>
+  return <AuthFrame heading="Password recovery is not available yet" points={["Your current password still works", "Sign in to access your forms and responses"]}>
+    <div className="sf-auth-card"><Link href="/"><SpaceFormLogo /></Link><div className="sf-auth-heading"><h1>Password recovery unavailable</h1><p>CoForms cannot send password reset emails yet. You can return to sign in with your current password.</p></div><p className="sf-auth-switch"><Link href="/login">Back to sign in</Link></p></div>
   </AuthFrame>;
 }
 
@@ -411,7 +403,7 @@ export function FormBuilder() {
   const id = params?.id ?? "";
   const [, setLocation] = useLocation();
   const query = trpc.forms.get.useQuery({ id }, { enabled: Boolean(id) });
-  const update = trpc.forms.update.useMutation({ onSuccess: () => setSaveState("Saved"), onError: e => { setSaveState("Not saved"); toast.error(e.message); } });
+  const update = trpc.forms.update.useMutation({ onSuccess: () => setSaveState("Saved") });
   const publish = trpc.forms.setPublished.useMutation({ onSuccess: () => { toast.success("Publication updated"); query.refetch(); }, onError: e => toast.error(e.message) });
   const draft = trpc.ai.generate.useMutation({ onSuccess: (generated: any) => { const draftedQuestions: Question[] = (generated.questions ?? []).map((raw: any) => ({ id: makeId(), type: raw.type === "hidden_field" ? "hidden" : raw.type, title: raw.title ?? raw.label ?? "Untitled question", description: raw.description ?? "", required: Boolean(raw.required), options: raw.options ?? raw.settings?.options, settings: raw.settings ?? {}, logic: raw.logic ? { ...raw.logic, whenQuestionId: raw.logic.whenQuestionId ?? raw.logic.questionId } : null })); setForm(prev => prev ? { ...prev, title: generated.title || prev.title, description: generated.description || prev.description, questions: draftedQuestions } : prev); setSelected(draftedQuestions[0]?.id ?? ""); setAiOpen(false); }, onError: e => toast.error(e.message) });
   const [form, setForm] = useState<FormDoc | null>(null);
@@ -422,21 +414,62 @@ export function FormBuilder() {
   const [aiOpen, setAiOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const initialized = useRef(false);
+  const hydratedFormRef = useRef<FormDoc | null>(null);
+  const saveMutationRef = useRef(update.mutateAsync);
+  saveMutationRef.current = update.mutateAsync;
+  const saveSchedulerRef = useRef(createDebouncedSave(
+    (input: Parameters<typeof update.mutateAsync>[0]) => saveMutationRef.current(input),
+    error => {
+      setSaveState("Not saved");
+      toast.error(error instanceof Error ? error.message : "Could not save your changes.");
+    },
+    650,
+  ));
+  const saveInFlightRef = useRef(false);
+  saveInFlightRef.current = update.isPending;
   useEffect(() => {
     const normalized = normalizeForm(query.data);
-    if (normalized) { setForm(normalized); setSelected(normalized.questions[0]?.id ?? ""); initialized.current = true; }
+    if (normalized) {
+      hydratedFormRef.current = normalized;
+      setForm(normalized);
+      setSelected(normalized.questions[0]?.id ?? "");
+      initialized.current = true;
+    }
   }, [query.data]);
   useEffect(() => {
     if (!form || !initialized.current) return;
+    if (form === hydratedFormRef.current) return;
     setSaveState("Saving…");
-    const timer = window.setTimeout(() => update.mutate({ id: String(form.id), title: form.title, description: form.description ?? "", questions: form.questions.map(question => ({ ...question, title: question.title, options: questionOptions(question), settings: { ...(question.settings ?? {}), options: questionOptions(question) } })), theme: form.theme ?? {}, settings: form.settings ?? {} }), 650);
-    return () => window.clearTimeout(timer);
+    saveSchedulerRef.current.schedule({
+      id: String(form.id),
+      title: form.title,
+      description: form.description ?? "",
+      questions: form.questions.map(question => ({ ...question, title: question.title, options: questionOptions(question), settings: { ...(question.settings ?? {}), options: questionOptions(question) } })),
+      theme: form.theme ?? {},
+      settings: form.settings ?? {},
+    });
   }, [form]);
+  useEffect(() => {
+    const warnAboutUnsavedChanges = (event: BeforeUnloadEvent) => {
+      if (!saveSchedulerRef.current.isPending() && !saveInFlightRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnAboutUnsavedChanges);
+    return () => {
+      window.removeEventListener("beforeunload", warnAboutUnsavedChanges);
+      saveSchedulerRef.current.flush();
+    };
+  }, []);
   const selectedQuestion = form?.questions.find(q => q.id === selected);
   function changeQuestion(id: string, patch: Partial<Question>) {
     setForm(current => current ? { ...current, questions: current.questions.map(q => q.id === id ? { ...q, ...patch } : q) } : current);
   }
   function addQuestion(type: FieldType) {
+    if (type === "payment") {
+      toast.message("Payment questions are not available yet.");
+      return;
+    }
     const item: Question = { id: makeId(), type, title: `New ${FIELD_TYPES.find(f => f.type === type)?.name.toLowerCase() ?? "question"}`, required: false, options: ["Option 1", "Option 2", "Option 3"] };
     setForm(current => current ? { ...current, questions: [...current.questions, item] } : current); setSelected(item.id); setTab("build");
   }
@@ -461,7 +494,7 @@ export function FormBuilder() {
     {!isPublished && form.questions.length === 0 && <div className="sf-publish-hint" role="status">Add at least one question before publishing this form.</div>}
     <div className="sf-editor-body">
       <aside className="sf-builder-left"><div className="sf-builder-tabs"><button onClick={() => setTab("build")} className={tab === "build" ? "active" : ""}><FileText size={15} />Build</button><button onClick={() => setTab("design")} className={tab === "design" ? "active" : ""}><Palette size={15} />Design</button><button onClick={() => setTab("logic")} className={tab === "logic" ? "active" : ""}><Settings2 size={15} />Logic</button></div>
-        {tab === "build" && <div className="sf-question-list"><div className="sf-list-caption">QUESTIONS <span>{form.questions.length}</span></div>{form.questions.map((q, index) => <button key={q.id} className={`sf-question-nav ${q.id === selected ? "active" : ""}`} onClick={() => setSelected(q.id)}><GripVertical size={14} /><span className="sf-question-number">{String(index + 1).padStart(2, "0")}</span><span className="sf-question-nav-text"><b>{q.title}</b><small>{FIELD_TYPES.find(f => f.type === q.type)?.name ?? q.type}{q.required ? " · required" : ""}</small></span></button>)}<div className="sf-add-question"><label>Add a question type<select value="" onChange={e => e.target.value && addQuestion(e.target.value as FieldType)}><option value="">Choose field…</option>{Object.entries(fields).map(([group, entries]) => <optgroup key={group} label={group}>{entries.map(field => <option key={field.type} value={field.type}>{field.name}</option>)}</optgroup>)}</select></label><div className="sf-add-common">{FIELD_TYPES.slice(0, 5).map(field => <button key={field.type} title={`Add ${field.name}`} onClick={() => addQuestion(field.type)}><Plus size={12} />{field.name}</button>)}</div></div></div>}
+        {tab === "build" && <div className="sf-question-list"><div className="sf-list-caption">QUESTIONS <span>{form.questions.length}</span></div>{form.questions.map((q, index) => <button key={q.id} className={`sf-question-nav ${q.id === selected ? "active" : ""}`} onClick={() => setSelected(q.id)}><GripVertical size={14} /><span className="sf-question-number">{String(index + 1).padStart(2, "0")}</span><span className="sf-question-nav-text"><b>{q.title}</b><small>{FIELD_TYPES.find(f => f.type === q.type)?.name ?? q.type}{q.required ? " · required" : ""}</small></span></button>)}<div className="sf-add-question"><label>Add a question type<select value="" onChange={e => e.target.value && addQuestion(e.target.value as FieldType)}><option value="">Choose field…</option>{Object.entries(fields).map(([group, entries]) => <optgroup key={group} label={group}>{entries.map(field => <option key={field.type} value={field.type} disabled={field.type === "payment"}>{field.type === "payment" ? "Payment (not available yet)" : field.name}</option>)}</optgroup>)}</select></label><div className="sf-add-common">{FIELD_TYPES.slice(0, 5).map(field => <button key={field.type} title={`Add ${field.name}`} onClick={() => addQuestion(field.type)}><Plus size={12} />{field.name}</button>)}</div></div></div>}
         {tab === "design" && <div className="sf-design-panel"><span className="sf-list-caption">YOUR LOOK</span><label>Accent color<div className="sf-color-input"><input type="color" value={form.theme?.accent ?? "#e7bd45"} onChange={e => setForm(v => v ? { ...v, theme: { ...v.theme, accent: e.target.value } } : v)} /><code>{form.theme?.accent ?? "#e7bd45"}</code></div></label><label>Background<div className="sf-color-input"><input type="color" value={form.theme?.background ?? "#faf9f5"} onChange={e => setForm(v => v ? { ...v, theme: { ...v.theme, background: e.target.value } } : v)} /><code>{form.theme?.background ?? "#faf9f5"}</code></div></label><label>Typeface<select value={form.theme?.font ?? "sans"} onChange={e => setForm(v => v ? { ...v, theme: { ...v.theme, font: e.target.value } } : v)}><option value="sans">Modern sans</option><option value="serif">Editorial serif</option><option value="mono">Monospace</option></select></label><div className="sf-theme-swatches"><button onClick={() => setForm(v => v ? { ...v, theme: { accent: "#e7bd45", background: "#faf9f5", font: "sans" } } : v)}><i className="swatch-yellow" />Paper</button><button onClick={() => setForm(v => v ? { ...v, theme: { accent: "#80a98e", background: "#f5f7f3", font: "serif" } } : v)}><i className="swatch-green" />Field</button><button onClick={() => setForm(v => v ? { ...v, theme: { accent: "#a5a2d8", background: "#f7f6fb", font: "sans" } } : v)}><i className="swatch-lilac" />Soft</button></div><p className="sf-helper-copy">Color and type are saved as you edit.</p></div>}
         {tab === "logic" && <div className="sf-logic-panel"><span className="sf-list-caption">JUMP LOGIC</span><p>Show a question only when an earlier answer makes it relevant.</p>{form.questions.map(q => <div className="sf-logic-row" key={q.id}><span>{q.title}</span><select value={q.logic?.whenQuestionId ?? ""} onChange={e => changeQuestion(q.id, { logic: e.target.value ? { ...(q.logic ?? {}), whenQuestionId: e.target.value } : null })}><option value="">Always show</option>{form.questions.filter(prev => form.questions.indexOf(prev) < form.questions.indexOf(q)).map(prev => <option value={prev.id} key={prev.id}>If {prev.title}</option>)}</select>{q.logic?.whenQuestionId && <><select value={q.logic.operator ?? "equals"} onChange={e => changeQuestion(q.id, { logic: { ...q.logic, operator: e.target.value as "equals" | "not_equals" } })}><option value="equals">is</option><option value="not_equals">is not</option></select><input value={q.logic.value ?? ""} onChange={e => changeQuestion(q.id, { logic: { ...q.logic, value: e.target.value } })} placeholder="Answer value" /></>}</div>)}</div>}
       </aside>
@@ -512,7 +545,7 @@ export function ResponsesPage() {
       : <>
     <div className="sf-response-stats"><div><span>Started</span><b>{metrics.started ?? responses.length}</b></div><div><span>Submitted</span><b>{responses.length}</b></div><div><span>Completion rate</span><b>{metrics.completionRate ?? 0}%</b></div><div><span>Questions</span><b>{questions.length}</b></div><div><span>Form status</span><b>{form?.published ? "Published" : "Draft"}</b></div></div>
     <div className="sf-table-wrap"><table className="sf-response-table"><thead><tr><th>Submitted</th>{questions.map(q => <th key={q.id}>{q.title}</th>)}</tr></thead><tbody>{responses.map((response: any, index: number) => { const source = response.answers ?? response.values ?? {}; const byId = Array.isArray(source) ? Object.fromEntries(source.map((a: any) => [a.questionId ?? a.fieldId, a.value])) : source; return <tr key={response.id ?? index}><td>{displayDate(response.submittedAt ?? response.createdAt)}</td>{questions.map(q => <td key={q.id}>{Array.isArray(byId[q.id]) ? byId[q.id].join(", ") : typeof byId[q.id] === "object" ? JSON.stringify(byId[q.id]) : String(byId[q.id] ?? "—")}</td>)}</tr>; })}</tbody></table>{!responseQuery.isLoading && !responses.length && <div className="sf-empty sf-empty-compact"><span className="sf-empty-icon"><BarChart3 size={24} /></span><h3>Your responses will show up here.</h3><p>Publish your form and share the link to start collecting answers.</p></div>}</div>
-    {questions.length > 0 && <section className="sf-section-block"><div className="sf-section-heading"><div><h2>Question summary</h2><p>Response counts and reach by question.</p></div></div><div className="sf-summary-grid">{questions.map(q => { const count = responses.filter((r: any) => { const a = r.answers ?? r.values ?? {}; return Boolean(Array.isArray(a) ? a.find((x: any) => (x.questionId ?? x.fieldId) === q.id)?.value : a[q.id]); }).length; return <div key={q.id} className="sf-summary-card"><span>{q.title}</span><b>{count} <small>of {responses.length} answered · {viewedByQuestion.get(q.id) ?? 0} reached</small></b><div className="sf-progress"><i style={{ width: `${responses.length ? count / responses.length * 100 : 0}%` }} /></div></div>; })}</div></section>}
+    {questions.length > 0 && <section className="sf-section-block"><div className="sf-section-heading"><div><h2>Question summary</h2><p>Response counts and reach by question.</p></div></div><div className="sf-summary-grid">{questions.map(q => {     const count = responses.filter((r: any) => { const a = r.answers ?? r.values ?? {}; return hasResponseValue(Array.isArray(a) ? a.find((x: any) => (x.questionId ?? x.fieldId) === q.id)?.value : a[q.id]); }).length; return <div key={q.id} className="sf-summary-card"><span>{q.title}</span><b>{count} <small>of {responses.length} answered · {viewedByQuestion.get(q.id) ?? 0} reached</small></b><div className="sf-progress"><i style={{ width: `${responses.length ? count / responses.length * 100 : 0}%` }} /></div></div>; })}</div></section>}
       </>}
   </AppShell>;
 }
@@ -545,7 +578,7 @@ export function FieldInput({ question, value, onChange, disabled = false, onFile
     case "file_upload": return <label className="sf-upload-box"><Upload size={20} /><span>{value?.name ?? "Choose a file or drag it here"}</span><small>Max 10 MB</small><input type="file" disabled={disabled} onChange={e => { const file = e.target.files?.[0]; if (file && onFile) void onFile(file); else if (file) onChange({ name: file.name, size: file.size }); }} /></label>;
     case "signature": return <SignaturePad value={value} onChange={onChange} disabled={disabled} />;
     case "hidden": return <span className="sf-hidden-field-note">Hidden from respondents</span>;
-    case "payment": return <div className="sf-payment-notice"><span>₹</span><div><b>Payment setup required</b><small>Connect Stripe or Razorpay to collect payments.</small></div></div>;
+    case "payment": return <div className="sf-payment-notice"><span>₹</span><div><b>Payment collection is unavailable</b><small>This form cannot be published while it contains a payment question.</small></div></div>;
     default: return basic("text");
   }
 }
@@ -564,7 +597,7 @@ export function PublicForm() {
   const [, params] = useRoute("/f/:slug");
   const slug = params?.slug ?? "";
   const query = trpc.forms.bySlug.useQuery({ slug }, { enabled: Boolean(slug) });
-  const submit = trpc.forms.submit.useMutation({ onSuccess: result => { if (result.redirectUrl) window.location.assign(result.redirectUrl); else setComplete(true); }, onError: e => toast.error(e.message) });
+  const submit = trpc.forms.submit.useMutation({ onSuccess: result => { if (result?.redirectUrl) window.location.assign(result.redirectUrl); else setComplete(true); }, onError: e => toast.error(e.message) });
   const prepareUpload = trpc.forms.prepareUpload.useMutation();
   const evaluateVisibility = trpc.forms.visible.useMutation();
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -667,14 +700,8 @@ export function PublicForm() {
       setVisibleIds(nextVisible.map(question => question.id));
       if (nextIndex < 0) submitAnswers();
       else setIndex(nextIndex);
-    } catch {
-      // Fallback: simply advance index linearly if visibility evaluation fails
-      const currentPosition = questions.findIndex(question => question.id === current.id);
-      if (currentPosition >= questions.length - 1) {
-        submitAnswers();
-      } else {
-        setIndex(i => i + 1);
-      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not check which question comes next. Please try again.");
     }
   }
 
